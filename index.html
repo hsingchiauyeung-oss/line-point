@@ -19,8 +19,8 @@
   <button id="lotteryBtn" style="display:none;">🎁 我要抽獎</button>
 
   <script>
-    const GAS_URL = "https://script.google.com/macros/s/你的GAS_ID/exec"; // 改成你的 Web App URL
-    const LIFF_ID = "你的LIFF_ID"; // 改成你的 LIFF ID
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzVIIzzvQReLkZS8yKIuRfeXC2L5ZiE_C9VUPceGO0p-7WSVuhgd7G70fmxLUKNK5YkBw/exec"; // 改成你的 Web App URL
+    const LIFF_ID = "2009031692-gSna9Z1E"; // 改成你的 LIFF ID
 
     async function init() {
       await liff.init({ liffId: LIFF_ID });
@@ -54,3 +54,4 @@
         const match = data.message.match(/目前 (\d+) 點/);
         if (match && parseInt(match[1]) >= 10) {
           document.getEleme
+
