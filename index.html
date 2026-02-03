@@ -1,83 +1,82 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>LINE 集點 & 抽獎</title>
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>集點卡</title>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        .btn { padding: 15px 30px; font-size: 18px; background: #00B900; color: white; border: none; border-radius: 10px; margin: 10px; cursor: pointer; }
+        .btn-draw { background: #ff5722; }
+        #status { margin-top: 20px; font-size: 20px; color: #333; }
+    </style>
 </head>
 <body>
-  <h2>LINE 集點 & 抽獎 Demo</h2>
+    <h1>我的集點卡</h1>
+    <p>目前點數：<span id="points">讀取中...</span></p>
+    
+    <button class="btn" onclick="addPoint()">打卡集點 (+1)</button>
+    <br>
+    <button class="btn btn-draw" onclick="drawPrize()">消耗10點抽獎</button>
 
-  <div>
-    <label>序號：</label>
-    <input type="text" id="codeInput" placeholder="掃描或輸入序號">
-    <button id="scanBtn">掃描 QR Code</button>
-  </div>
+    <div id="status"></div>
 
-  <p id="status"></p>
-  <p id="result"></p>
-  <button id="lotteryBtn" style="display:none;">🎁 我要抽獎</button>
+    <script>
+        // ----------------------------------------------------
+        // 請把下面的網址換成您剛剛在 Google Apps Script 複製的網址
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzVIIzzvQReLkZS8yKIuRfeXC2L5ZiE_C9VUPceGO0p-7WSVuhgd7G70fmxLUKNK5YkBw/exec';
+        
+        // 請填入您的 LIFF ID (在 LINE Developers 後台看)
+        const MY_LIFF_ID = '2009031692-gSna9Z1E';
+        // ----------------------------------------------------
 
-  <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzVIIzzvQReLkZS8yKIuRfeXC2L5ZiE_C9VUPceGO0p-7WSVuhgd7G70fmxLUKNK5YkBw/exec"; // Apps Script URL
-    const LIFF_ID = "2009031692-gSna9Z1E"; // LIFF ID
+        let userLineId = "";
 
-    async function init(){ await liff.init({ liffId: LIFF_ID }); }
-    init();
+        // 1. 網頁一打開，先連線 LINE 取得這是誰
+        window.onload = function() {
+            liff.init({ liffId: MY_LIFF_ID })
+                .then(() => {
+                    if (liff.isLoggedIn()) {
+                        liff.getProfile().then(profile => {
+                            userLineId = profile.userId;
+                            checkPoints(); // 登入後馬上查點數
+                        });
+                    } else {
+                        liff.login();
+                    }
+                })
+                .catch(err => {
+                    document.getElementById("status").innerText = "LIFF 初始化失敗：" + err;
+                });
+        };
 
-    // 掃 QR code → 自動集點
-    document.getElementById("scanBtn").onclick = async ()=>{
-      try{
-        const result = await liff.scanCodeV2();
-        const code = result.value.trim();
-        document.getElementById("codeInput").value = code;
-        document.getElementById("status").innerText = "集點中...";
-
-        const res = await fetch(GAS_URL,{
-          method:"POST",
-          body:JSON.stringify({ code, lineUserId: liff.getContext().userId })
-        });
-        const data = await res.json();
-        document.getElementById("result").innerText = data.message;
-        document.getElementById("status").innerText = "";
-
-        // 顯示抽獎按鈕
-        const match = data.message.match(/目前 (\d+) 點/);
-        if(match && parseInt(match[1])>=10){
-          document.getElementById("lotteryBtn").style.display="block";
-        }else{
-          document.getElementById("lotteryBtn").style.display="none";
+        // 2. 呼叫 GAS 店員的函式
+        function callGas(action) {
+            document.getElementById("status").innerText = "連線中...";
+            
+            // 透過 fetch 把指令傳給 Google
+            fetch(GAS_URL + '?action=' + action + '&userId=' + userLineId, {
+                method: "GET",
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("points").innerText = data.points;
+                document.getElementById("status").innerText = data.msg;
+                if(data.status === 'success' && action === 'draw') {
+                    alert(data.msg); // 抽獎成功跳視窗
+                }
+            })
+            .catch(error => {
+                document.getElementById("status").innerText = "連線錯誤，請稍後再試";
+            });
         }
 
-      }catch(err){
-        console.error(err);
-        document.getElementById("status").innerText="";
-        document.getElementById("result").innerText="集點失敗，請稍後再試";
-      }
-    };
+        // 按鈕功能
+        function checkPoints() { callGas('check'); }
+        function addPoint() { callGas('add'); }
+        function drawPrize() { callGas('draw'); }
 
-    // 抽獎按鈕
-    document.getElementById("lotteryBtn").onclick = async ()=>{
-      document.getElementById("status").innerText = "抽獎中...";
-      try{
-        const res = await fetch(GAS_URL+"?action=lottery&lineUserId="+liff.getContext().userId);
-        const data = await res.json();
-        document.getElementById("result").innerText = data.message;
-      }catch(err){
-        console.error(err);
-        document.getElementById("result").innerText="抽獎失敗，請稍後再試";
-      }
-      document.getElementById("status").innerText = "";
-
-      // 剩餘點數 ≥10 → 按鈕可再次抽
-      const match = document.getElementById("result").innerText.match(/剩餘點數：(\d+)/);
-      if(match && parseInt(match[1])>=10){
-        document.getElementById("lotteryBtn").style.display="block";
-      }else{
-        document.getElementById("lotteryBtn").style.display="none";
-      }
-    };
-  </script>
+    </script>
 </body>
 </html>
-
