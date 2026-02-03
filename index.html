@@ -68,8 +68,11 @@
                 }
             })
             .catch(error => {
-                document.getElementById("status").innerText = "連線錯誤，請稍後再試";
-            });
+    // 把錯誤印出來給你看
+    alert("錯誤原因：" + error); 
+    console.log(error); // 如果你會用電腦瀏覽器的 F12 看
+    document.getElementById("status").innerText = "連線錯誤：" + error;
+});
         }
 
         // 按鈕功能
@@ -80,3 +83,4 @@
     </script>
 </body>
 </html>
+
