@@ -68,20 +68,36 @@
                 });
         };
 
-        function testConnection(userId) {
+       function testConnection(userId) {
             // 測試連線
             fetch(GAS_URL + '?action=check&userId=' + userId)
-            .then(res => res.json()) // 嘗試解析 JSON
-            .then(data => {
-                alert('🎉 恭喜！連線成功！\n回傳點數：' + data.points);
-                log('連線成功，回傳: ' + JSON.stringify(data));
+            .then(response => {
+                // 先檢查網路狀態是不是 200 OK
+                if (!response.ok) {
+                    throw new Error("伺服器回應錯誤: " + response.status);
+                }
+                // 這裡不要直接轉 json，先轉 text 看看內容是什麼
+                return response.text();
+            })
+            .then(text => {
+                log('收到原始資料: ' + text); // 把收到的東西印出來看
+                
+                // 嘗試把它轉成 JSON
+                try {
+                    const data = JSON.parse(text);
+                    alert('🎉 終於成功了！\n' + data.message);
+                } catch (e) {
+                    throw new Error("資料不是 JSON 格式，可能是錯誤頁面");
+                }
             })
             .catch(error => {
-                alert('❌ 連線 Google 失敗\n可能原因：網址錯了、權限沒開、或程式碼沒部署');
-                log('Fetch Error: ' + error);
+                alert('❌ 還是失敗：' + error);
+                log('詳細錯誤: ' + error);
             });
+        }
         }
     </script>
 </body>
 </html>
+
 
