@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>LINE 集點</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body>
+  <h2>集點中...</h2>
+  <p id="result"></p>
+
+  <script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzVIIzzvQReLkZS8yKIuRfeXC2L5ZiE_C9VUPceGO0p-7WSVuhgd7G70fmxLUKNK5YkBw/exec";
+
+    function getQuery(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
+    }
+
+    async function main() {
+      await liff.init({ liffId: "2009031692-gSna9Z1E" });
+
+      if (!liff.isLoggedIn()) {
+        liff.login();
+        return;
+      }
+
+      const profile = await liff.getProfile();
+      const code = getQuery("code");
+
+      if (!code) {
+        document.getElementById("result").innerText = "找不到序號";
+        return;
+      }
+
+      const res = await fetch(GAS_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          lineUserId: profile.userId,
+          code: code
+        })
+      });
+
+      const data = await res.json();
+      document.getElementById("result").innerText = data.message;
+    }
+
+    main();
+  </script>
+</body>
+</html>
