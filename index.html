@@ -19,39 +19,56 @@
   <button id="lotteryBtn" style="display:none;">🎁 我要抽獎</button>
 
   <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzVIIzzvQReLkZS8yKIuRfeXC2L5ZiE_C9VUPceGO0p-7WSVuhgd7G70fmxLUKNK5YkBw/exec"; // 改成你的 Web App URL
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzVIIzzvQReLkZS8yKIuRfeXC2L5ZiE_C9VUPceGO0p-7WSVuhgd7G70fmxLUKNK5YkBw/exec"; // 改成你的 Apps Script URL
     const LIFF_ID = "2009031692-gSna9Z1E"; // 改成你的 LIFF ID
 
-    async function init() {
-      await liff.init({ liffId: LIFF_ID });
-    }
-
+    async function init() { await liff.init({ liffId: LIFF_ID }); }
     init();
 
-    // 掃描 QR Code，自動集點
+    // 掃描 QR Code → 自動集點
     document.getElementById("scanBtn").onclick = async () => {
       try {
         const result = await liff.scanCodeV2();
         const code = result.value.trim();
         document.getElementById("codeInput").value = code;
-
         document.getElementById("status").innerText = "集點中...";
 
-        // 自動集點 POST
         const res = await fetch(GAS_URL, {
           method: "POST",
-          body: JSON.stringify({
-            code: code,
-            lineUserId: liff.getContext().userId
-          })
+          body: JSON.stringify({ code, lineUserId: liff.getContext().userId })
         });
-
         const data = await res.json();
         document.getElementById("result").innerText = data.message;
         document.getElementById("status").innerText = "";
 
-        // 如果點數 >=10 顯示抽獎按鈕
+        // 顯示抽獎按鈕 if 點數 >=10
         const match = data.message.match(/目前 (\d+) 點/);
-        if (match && parseInt(match[1]) >= 10) {
-          document.getEleme
+        if(match && parseInt(match[1])>=10) {
+          document.getElementById("lotteryBtn").style.display = "block";
+        } else {
+          document.getElementById("lotteryBtn").style.display = "none";
+        }
 
+      } catch(err) {
+        alert("掃描失敗或取消");
+      }
+    };
+
+    // 抽獎按鈕
+    document.getElementById("lotteryBtn").onclick = async () => {
+      document.getElementById("status").innerText = "抽獎中...";
+      const res = await fetch(GAS_URL + "?action=lottery&lineUserId=" + liff.getContext().userId);
+      const data = await res.json();
+      document.getElementById("result").innerText = data.message;
+      document.getElementById("status").innerText = "";
+
+      const match = data.message.match(/剩餘點數：(\d+)/);
+      if(match && parseInt(match[1])>=10) {
+        document.getElementById("lotteryBtn").style.display = "block";
+      } else {
+        document.getElementById("lotteryBtn").style.display = "none";
+      }
+    };
+  </script>
+</body>
+</html>
