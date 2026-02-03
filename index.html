@@ -1,103 +1,123 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>集點卡除錯版</title>
-    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-    <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; }
-        .btn { padding: 15px; font-size: 18px; background: #ddd; margin: 10px; display: block; width: 80%; margin: 10px auto; }
-        #debug-console { text-align: left; background: #f0f0f0; padding: 10px; margin-top: 20px; border: 1px solid #999; font-size: 12px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>集點抽獎活動</title>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f5f5f5; }
+    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    h1 { color: #00B900; }
+    #points { font-size: 48px; font-weight: bold; color: #333; }
+    button { background: #00B900; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 50px; cursor: pointer; margin-top: 20px; }
+    button:disabled { background: #ccc; }
+    #status { margin-top: 15px; color: #666; }
+    .hidden { display: none; }
+  </style>
 </head>
 <body>
-    <h2>集點卡除錯模式</h2>
-    <div id="status">準備中...</div>
-    <div id="debug-console">日誌將顯示在此...</div>
 
-    <script>
-        // === 請務必檢查這裡有沒有填對 ===
-        const GAS_URL = 'https://script.google.com/macros/s/AKfycbx-DjbmDFNzGqFQwQS7K_SkBftnzFS28M_ZbUP7eE_RjgEk8F016slDfi-PFz6DOiCeSA/exec'; 
-        const MY_LIFF_ID = '2009031692-gSna9Z1E';
-        // ==============================
+  <div class="card">
+    <h1>集點卡</h1>
+    <div>目前點數</div>
+    <div id="points">...</div>
+    
+    <button id="btnDraw" disabled onclick="drawPrize()">消耗10點抽獎</button>
+    
+    <div id="status">讀取中...</div>
+  </div>
 
-        // 輔助函式：把訊息印在畫面上，方便手機查看
-        function log(msg) {
-            const consoleDiv = document.getElementById('debug-console');
-            consoleDiv.innerHTML += "<br>" + msg;
-            document.getElementById('status').innerText = msg;
+  <script>
+    // ================= 設定區 =================
+    const LIFF_ID = "你的LIFF_ID"; // 請填入 LINE Developers 的 LIFF ID
+    const GAS_URL = "你的GAS_網頁應用程式網址"; // 請填入剛才部署拿到的網址
+    // =========================================
+
+    let currentUserId = "";
+
+    // 1. 初始化 LIFF
+    liff.init({ liffId: LIFF_ID }).then(() => {
+      if (!liff.isLoggedIn()) {
+        liff.login();
+      } else {
+        liff.getProfile().then(profile => {
+          currentUserId = profile.userId;
+          checkScanOrLoad(); // 登入成功後開始邏輯
+        });
+      }
+    }).catch(err => {
+      document.getElementById('status').innerText = "LIFF 初始化失敗: " + err;
+    });
+
+    // 2. 判斷是「掃碼進來」還是「單純查看」
+    function checkScanOrLoad() {
+      // 取得網址參數 ?code=xxxxx
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+
+      if (code) {
+        document.getElementById('status').innerText = "正在集點中...";
+        callApi({ action: "scan", userId: currentUserId, code: code });
+      } else {
+        document.getElementById('status').innerText = "載入資料中...";
+        callApi({ action: "getUser", userId: currentUserId });
+      }
+    }
+
+    // 3. 呼叫 Google Apps Script API
+    function callApi(data) {
+      fetch(GAS_URL, {
+        method: "POST",
+        body: JSON.stringify(data) // 使用 POST 傳送 JSON
+      })
+      .then(res => res.json())
+      .then(response => {
+        if (response.status === "success") {
+          updateUI(response.points);
+          
+          if (data.action === "scan") {
+            alert(response.message);
+            // 掃碼完畢後，建議清除網址參數，避免重新整理又送一次
+            window.history.replaceState({}, document.title, window.location.pathname);
+            document.getElementById('status').innerText = "集點完成";
+          } else if (data.action === "draw") {
+            alert("恭喜獲得： " + response.prize + "！");
+          } else {
+            document.getElementById('status').innerText = "歡迎回來";
+          }
+
+        } else {
+          alert("錯誤：" + response.message);
+          document.getElementById('status').innerText = response.message;
         }
+      })
+      .catch(err => {
+        document.getElementById('status').innerText = "連線失敗，請稍後再試";
+        console.error(err);
+      });
+    }
 
-        // --- 檢查站 1: 程式碼有沒有跑起來 ---
-        alert('檢查站 1: 網頁讀取成功');
-        log('檢查站 1 通過');
+    // 4. 更新介面
+    function updateUI(points) {
+      document.getElementById('points').innerText = points;
+      const btn = document.getElementById('btnDraw');
+      if (points >= 10) {
+        btn.disabled = false;
+        btn.innerText = "消耗10點抽獎";
+      } else {
+        btn.disabled = true;
+        btn.innerText = "點數不足 (需10點)";
+      }
+    }
 
-        window.onload = function() {
-            log('準備啟動 LIFF...');
-            
-            if (!MY_LIFF_ID) {
-                alert('錯誤：您忘記填寫 LIFF ID 了！');
-                return;
-            }
+    // 5. 抽獎功能
+    function drawPrize() {
+      if(!confirm("確定要消耗 10 點進行抽獎嗎？")) return;
+      document.getElementById('status').innerText = "抽獎進行中...";
+      callApi({ action: "draw", userId: currentUserId });
+    }
 
-            // --- 檢查站 2: LIFF 初始化 ---
-            liff.init({ liffId: MY_LIFF_ID })
-                .then(() => {
-                    alert('檢查站 2: LIFF 初始化成功');
-                    log('檢查站 2 通過，準備登入...');
-                    
-                    if (!liff.isLoggedIn()) {
-                        log('尚未登入，轉跳登入頁面...');
-                        liff.login();
-                    } else {
-                        liff.getProfile().then(profile => {
-                            const userId = profile.userId;
-                            alert('檢查站 3: 抓到 UserID 了\n' + userId);
-                            log('抓到 UserID: ' + userId);
-                            
-                            // 這裡才開始真正連線 Google
-                            log('開始連線 Google Sheet...');
-                            testConnection(userId);
-                        });
-                    }
-                })
-                .catch(err => {
-                    alert('❌ LIFF 初始化失敗！\n代碼：' + err.code + '\n訊息：' + err.message);
-                    log('LIFF Error: ' + err);
-                });
-        };
-
-       function testConnection(userId) {
-            // 測試連線
-            fetch(GAS_URL + '?action=check&userId=' + userId)
-            .then(response => {
-                // 先檢查網路狀態是不是 200 OK
-                if (!response.ok) {
-                    throw new Error("伺服器回應錯誤: " + response.status);
-                }
-                // 這裡不要直接轉 json，先轉 text 看看內容是什麼
-                return response.text();
-            })
-            .then(text => {
-                log('收到原始資料: ' + text); // 把收到的東西印出來看
-                
-                // 嘗試把它轉成 JSON
-                try {
-                    const data = JSON.parse(text);
-                    alert('🎉 終於成功了！\n' + data.message);
-                } catch (e) {
-                    throw new Error("資料不是 JSON 格式，可能是錯誤頁面");
-                }
-            })
-            .catch(error => {
-                alert('❌ 還是失敗：' + error);
-                log('詳細錯誤: ' + error);
-            });
-        }
-        }
-    </script>
+  </script>
 </body>
 </html>
-
-
