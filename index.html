@@ -3,84 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>集點卡</title>
+    <title>集點卡除錯版</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
         body { font-family: sans-serif; text-align: center; padding: 20px; }
-        .btn { padding: 15px 30px; font-size: 18px; background: #00B900; color: white; border: none; border-radius: 10px; margin: 10px; cursor: pointer; }
-        .btn-draw { background: #ff5722; }
-        #status { margin-top: 20px; font-size: 20px; color: #333; }
+        .btn { padding: 15px; font-size: 18px; background: #ddd; margin: 10px; display: block; width: 80%; margin: 10px auto; }
+        #debug-console { text-align: left; background: #f0f0f0; padding: 10px; margin-top: 20px; border: 1px solid #999; font-size: 12px; }
     </style>
 </head>
 <body>
-    <h1>我的集點卡</h1>
-    <p>目前點數：<span id="points">讀取中...</span></p>
-    
-    <button class="btn" onclick="addPoint()">打卡集點 (+1)</button>
-    <br>
-    <button class="btn btn-draw" onclick="drawPrize()">消耗10點抽獎</button>
-
-    <div id="status"></div>
+    <h2>集點卡除錯模式</h2>
+    <div id="status">準備中...</div>
+    <div id="debug-console">日誌將顯示在此...</div>
 
     <script>
-        // ----------------------------------------------------
-        // 請把下面的網址換成您剛剛在 Google Apps Script 複製的網址
-        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzVIIzzvQReLkZS8yKIuRfeXC2L5ZiE_C9VUPceGO0p-7WSVuhgd7G70fmxLUKNK5YkBw/exec';
-        
-        // 請填入您的 LIFF ID (在 LINE Developers 後台看)
+        // === 請務必檢查這裡有沒有填對 ===
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzVIIzzvQReLkZS8yKIuRfeXC2L5ZiE_C9VUPceGO0p-7WSVuhgd7G70fmxLUKNK5YkBw/exec'; 
         const MY_LIFF_ID = '2009031692-gSna9Z1E';
-        // ----------------------------------------------------
+        // ==============================
 
-        let userLineId = "";
+        // 輔助函式：把訊息印在畫面上，方便手機查看
+        function log(msg) {
+            const consoleDiv = document.getElementById('debug-console');
+            consoleDiv.innerHTML += "<br>" + msg;
+            document.getElementById('status').innerText = msg;
+        }
 
-        // 1. 網頁一打開，先連線 LINE 取得這是誰
+        // --- 檢查站 1: 程式碼有沒有跑起來 ---
+        alert('檢查站 1: 網頁讀取成功');
+        log('檢查站 1 通過');
+
         window.onload = function() {
+            log('準備啟動 LIFF...');
+            
+            if (!MY_LIFF_ID) {
+                alert('錯誤：您忘記填寫 LIFF ID 了！');
+                return;
+            }
+
+            // --- 檢查站 2: LIFF 初始化 ---
             liff.init({ liffId: MY_LIFF_ID })
                 .then(() => {
-                    if (liff.isLoggedIn()) {
-                        liff.getProfile().then(profile => {
-                            userLineId = profile.userId;
-                            checkPoints(); // 登入後馬上查點數
-                        });
-                    } else {
+                    alert('檢查站 2: LIFF 初始化成功');
+                    log('檢查站 2 通過，準備登入...');
+                    
+                    if (!liff.isLoggedIn()) {
+                        log('尚未登入，轉跳登入頁面...');
                         liff.login();
+                    } else {
+                        liff.getProfile().then(profile => {
+                            const userId = profile.userId;
+                            alert('檢查站 3: 抓到 UserID 了\n' + userId);
+                            log('抓到 UserID: ' + userId);
+                            
+                            // 這裡才開始真正連線 Google
+                            log('開始連線 Google Sheet...');
+                            testConnection(userId);
+                        });
                     }
                 })
                 .catch(err => {
-                    document.getElementById("status").innerText = "LIFF 初始化失敗：" + err;
+                    alert('❌ LIFF 初始化失敗！\n代碼：' + err.code + '\n訊息：' + err.message);
+                    log('LIFF Error: ' + err);
                 });
         };
 
-        // 2. 呼叫 GAS 店員的函式
-        function callGas(action) {
-            document.getElementById("status").innerText = "連線中...";
-            
-            // 透過 fetch 把指令傳給 Google
-            fetch(GAS_URL + '?action=' + action + '&userId=' + userLineId, {
-                method: "GET",
-            })
-            .then(response => response.json())
+        function testConnection(userId) {
+            // 測試連線
+            fetch(GAS_URL + '?action=check&userId=' + userId)
+            .then(res => res.json()) // 嘗試解析 JSON
             .then(data => {
-                document.getElementById("points").innerText = data.points;
-                document.getElementById("status").innerText = data.msg;
-                if(data.status === 'success' && action === 'draw') {
-                    alert(data.msg); // 抽獎成功跳視窗
-                }
+                alert('🎉 恭喜！連線成功！\n回傳點數：' + data.points);
+                log('連線成功，回傳: ' + JSON.stringify(data));
             })
             .catch(error => {
-    // 把錯誤印出來給你看
-    alert("錯誤原因：" + error); 
-    console.log(error); // 如果你會用電腦瀏覽器的 F12 看
-    document.getElementById("status").innerText = "連線錯誤：" + error;
-});
+                alert('❌ 連線 Google 失敗\n可能原因：網址錯了、權限沒開、或程式碼沒部署');
+                log('Fetch Error: ' + error);
+            });
         }
-
-        // 按鈕功能
-        function checkPoints() { callGas('check'); }
-        function addPoint() { callGas('add'); }
-        function drawPrize() { callGas('draw'); }
-
     </script>
 </body>
 </html>
-
