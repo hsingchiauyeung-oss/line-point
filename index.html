@@ -8,6 +8,7 @@
 <body>
   <h2>集點中...</h2>
   <p id="result"></p>
+  <button id="lotteryBtn" style="display:none;">🎁 我要抽獎</button>
 
   <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzVIIzzvQReLkZS8yKIuRfeXC2L5ZiE_C9VUPceGO0p-7WSVuhgd7G70fmxLUKNK5YkBw/exec";
@@ -43,9 +44,28 @@
 
       const data = await res.json();
       document.getElementById("result").innerText = data.message;
+
+if (data.message.includes("目前")) {
+  const point = parseInt(data.message.match(/\d+/));
+  if (point >= 10) {
+    document.getElementById("lotteryBtn").style.display = "block";
+    document.getElementById("lotteryBtn").onclick = async () => {
+  document.getElementById("status").innerText = "抽獎中...";
+
+  const res = await fetch(
+    GAS_URL + "?action=lottery&lineUserId=" + liff.getContext().userId
+  );
+
+  const data = await res.json();
+  document.getElementById("result").innerText = data.message;
+  document.getElementById("lotteryBtn").style.display = "none";
+};
+  }
+}
     }
 
     main();
   </script>
 </body>
 </html>
+
