@@ -12,7 +12,6 @@
     <label>序號：</label>
     <input type="text" id="codeInput" placeholder="掃描或輸入序號">
     <button id="scanBtn">掃描 QR Code</button>
-    <button id="pointBtn">集點</button>
   </div>
 
   <p id="status"></p>
@@ -29,56 +28,29 @@
 
     init();
 
-    // 掃描 QR Code，自動填入序號
+    // 掃描 QR Code，自動集點
     document.getElementById("scanBtn").onclick = async () => {
       try {
         const result = await liff.scanCodeV2();
-        document.getElementById("codeInput").value = result.value.trim();
-      } catch (err) {
-        alert("掃描失敗或取消");
-      }
-    };
+        const code = result.value.trim();
+        document.getElementById("codeInput").value = code;
 
-    // 集點按鈕
-    document.getElementById("pointBtn").onclick = async () => {
-      const code = document.getElementById("codeInput").value.trim();
-      if (!code) return alert("請輸入或掃描序號");
+        document.getElementById("status").innerText = "集點中...";
 
-      document.getElementById("status").innerText = "集點中...";
+        // 自動集點 POST
+        const res = await fetch(GAS_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            code: code,
+            lineUserId: liff.getContext().userId
+          })
+        });
 
-      const res = await fetch(GAS_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          code: code,
-          lineUserId: liff.getContext().userId
-        })
-      });
+        const data = await res.json();
+        document.getElementById("result").innerText = data.message;
+        document.getElementById("status").innerText = "";
 
-      const data = await res.json();
-      document.getElementById("result").innerText = data.message;
-      document.getElementById("status").innerText = "";
-
-      const match = data.message.match(/目前 (\d+) 點/);
-      if (match && parseInt(match[1]) >= 10) {
-        document.getElementById("lotteryBtn").style.display = "block";
-      } else {
-        document.getElementById("lotteryBtn").style.display = "none";
-      }
-    };
-
-    // 抽獎按鈕
-    document.getElementById("lotteryBtn").onclick = async () => {
-      document.getElementById("status").innerText = "抽獎中...";
-
-      const res = await fetch(GAS_URL + "?action=lottery&lineUserId=" + liff.getContext().userId);
-      const data = await res.json();
-
-      document.getElementById("result").innerText = data.message;
-      document.getElementById("status").innerText = "";
-
-      // 抽完自動隱藏按鈕
-      document.getElementById("lotteryBtn").style.display = "none";
-    };
-  </script>
-</body>
-</html>
+        // 如果點數 >=10 顯示抽獎按鈕
+        const match = data.message.match(/目前 (\d+) 點/);
+        if (match && parseInt(match[1]) >= 10) {
+          document.getEleme
