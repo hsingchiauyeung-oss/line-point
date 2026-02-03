@@ -19,8 +19,8 @@
   <button id="lotteryBtn" style="display:none;">🎁 我要抽獎</button>
 
   <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzVIIzzvQReLkZS8yKIuRfeXC2L5ZiE_C9VUPceGO0p-7WSVuhgd7G70fmxLUKNK5YkBw/exec"; // Apps Script URL
-    const LIFF_ID = "2009031692-gSna9Z1E"; // LINE LIFF ID
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzVIIzzvQReLkZS8yKIuRfeXC2L5ZiE_C9VUPceGO0p-7WSVuhgd7G70fmxLUKNK5YkBw/exec"; // Apps Script /exec URL
+    const LIFF_ID = "2009031692-gSna9Z1E"; // LIFF ID
 
     async function init(){ await liff.init({ liffId: LIFF_ID }); }
     init();
@@ -31,15 +31,15 @@
         const result = await liff.scanCodeV2();
         const code = result.value.trim();
         document.getElementById("codeInput").value = code;
-        document.getElementById("status").innerText = "集點中...";
+        document.getElementById("status").innerText="集點中...";
 
         const res = await fetch(GAS_URL,{
           method:"POST",
-          body: JSON.stringify({ code, lineUserId: liff.getContext().userId })
+          body:JSON.stringify({ code, lineUserId: liff.getContext().userId })
         });
         const data = await res.json();
-        document.getElementById("result").innerText = data.message;
-        document.getElementById("status").innerText = "";
+        document.getElementById("result").innerText=data.message;
+        document.getElementById("status").innerText="";
 
         // 顯示抽獎按鈕
         const match = data.message.match(/目前 (\d+) 點/);
@@ -50,8 +50,9 @@
         }
 
       }catch(err){
-        alert("掃描失敗或取消");
+        console.error(err);
         document.getElementById("status").innerText="";
+        document.getElementById("result").innerText="集點失敗，請稍後再試";
       }
     };
 
@@ -61,8 +62,9 @@
       try{
         const res = await fetch(GAS_URL+"?action=lottery&lineUserId="+liff.getContext().userId);
         const data = await res.json();
-        document.getElementById("result").innerText = data.message;
+        document.getElementById("result").innerText=data.message;
       }catch(err){
+        console.error(err);
         document.getElementById("result").innerText="抽獎失敗，請稍後再試";
       }
       document.getElementById("status").innerText="";
@@ -78,4 +80,3 @@
   </script>
 </body>
 </html>
-
