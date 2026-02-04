@@ -1,189 +1,201 @@
-// ==========================================
-// LINE 集點卡後端系統 (完整版)
-// ==========================================
-
-const SHEET_USERS = "Users";
-const SHEET_CODES = "Codes";
-const SHEET_AWARDS = "Awards";
-
-function doPost(e) {
-  const lock = LockService.getScriptLock();
-  
-  try {
-    // 嘗試鎖定 10 秒，避免多人同時掃碼造成資料錯亂
-    lock.waitLock(10000); 
-
-    // 解析前端傳來的資料
-    const params = JSON.parse(e.postData.contents);
-    const action = params.action;
-    const userId = params.userId;
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的集點卡</title>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; text-align: center; color: #333; }
+    .card { background: white; padding: 30px 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
+    h2 { margin: 0; font-size: 18px; color: #666; }
+    #points { font-size: 64px; font-weight: bold; color: #00B900; margin: 10px 0; line-height: 1; }
+    .btn { display: block; width: 100%; padding: 15px 0; border-radius: 50px; border: none; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 15px; transition: 0.2s; }
+    .btn-draw { background-color: #00B900; color: white; }
+    .btn-draw:disabled { background-color: #ccc; cursor: not-allowed; }
+    .btn-history { background-color: #e4e6eb; color: #333; }
+    #status { margin-top: 15px; font-size: 14px; color: #888; height: 20px; }
     
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    /* 歷史紀錄區塊 */
+    #historySection { margin-top: 25px; text-align: left; display: none; border-top: 1px solid #eee; padding-top: 20px; }
+    .history-item { padding: 10px 0; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center; }
+    .tag { padding: 2px 6px; border-radius: 4px; font-size: 12px; margin-right: 8px; }
+    .tag-scan { background: #e6f7ff; color: #1890ff; }
+    .tag-draw { background: #fff1f0; color: #f5222d; }
+    .time { font-size: 12px; color: #999; }
+    
+    /* 載入遮罩 */
+    #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); display: flex; align-items: center; justify-content: center; z-index: 999; font-weight: bold; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
 
-    // --- 狀況 A: 剛開啟頁面 (查詢點數 + 歷史紀錄) ---
-    if (action === "init") {
-      let points = getUserPoints(ss, userId);
-      let history = getUserHistory(ss, userId);
-      return responseJSON({ status: "success", points: points, history: history });
+  <div id="loading">系統讀取中...</div>
+
+  <div class="card">
+    <h2>目前累積點數</h2>
+    <div id="points">--</div>
+    
+    <div id="status"></div>
+
+    <button id="btnDraw" class="btn btn-draw" disabled onclick="handleDraw()">
+      集滿 10 點可抽獎
+    </button>
+
+    <button class="btn btn-history" onclick="toggleHistory()">
+      查看歷史紀錄
+    </button>
+
+    <div id="historySection">
+      <h3 style="font-size:16px; margin-bottom:10px;">最近活動</h3>
+      <div id="historyList">
+        </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // 設定區 (請修改這裡)
+    // ==========================================
+    const LIFF_ID = "你的_LIFF_ID"; 
+    const GAS_URL = "你的_GAS_部署網址"; 
+    // ==========================================
+
+    let currentUserId = null;
+
+    // 1. 程式入口：初始化 LIFF
+    liff.init({ liffId: LIFF_ID }).then(() => {
+      if (!liff.isLoggedIn()) {
+        liff.login();
+      } else {
+        liff.getProfile().then(profile => {
+          currentUserId = profile.userId;
+          mainLogic();
+        });
+      }
+    }).catch(err => {
+      alert("LIFF 初始化失敗：" + err);
+      document.getElementById('loading').classList.add('hidden');
+    });
+
+    // 2. 主要邏輯：判斷是「掃碼」還是「單純開啟」
+    function mainLogic() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+
+      if (code) {
+        // 有 code 代表是掃碼進來的
+        document.getElementById('loading').innerText = "集點處理中...";
+        callBackend("scan", { code: code });
+        
+        // 清除網址上的參數，避免重新整理頁面時又送一次
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else {
+        // 沒有 code 代表是用戶自己點進來看的
+        callBackend("init", {});
+      }
     }
 
-    // --- 狀況 B: 掃描 QR Code ---
-    if (action === "scan") {
-      const code = params.code;
-      const codesSheet = ss.getSheetByName(SHEET_CODES);
-      const data = codesSheet.getDataRange().getValues();
+    // 3. 呼叫後端 API
+    function callBackend(action, payload) {
+      const data = { action: action, userId: currentUserId, ...payload };
       
-      let targetRow = -1;
-      let message = "";
-      
-      // 1. 搜尋代碼
-      for (let i = 1; i < data.length; i++) {
-        if (String(data[i][0]) === String(code)) { // 比對代碼
-          targetRow = i + 1;
-          // 檢查狀態
-          if (data[i][1] === "Used") {
-            let p = getUserPoints(ss, userId);
-            let h = getUserHistory(ss, userId);
-            return responseJSON({ status: "error", message: "此 QR Code 已被使用過！", points: p, history: h });
-          }
-          break;
+      fetch(GAS_URL, {
+        method: "POST",
+        body: JSON.stringify(data)
+      })
+      .then(res => res.json())
+      .then(response => {
+        document.getElementById('loading').classList.add('hidden'); // 關閉遮罩
+        
+        // 如果是嚴重錯誤
+        if (response.status === "fatal_error") {
+          alert("系統錯誤：" + response.message);
+          return;
         }
-      }
 
-      if (targetRow === -1) {
-        let p = getUserPoints(ss, userId);
-        let h = getUserHistory(ss, userId);
-        return responseJSON({ status: "error", message: "無效的 QR Code", points: p, history: h });
-      }
+        // 更新介面 (點數與紀錄)
+        if (response.points !== undefined) updateUI(response.points);
+        if (response.history !== undefined) renderHistory(response.history);
 
-      // 2. 標記代碼為已使用
-      codesSheet.getRange(targetRow, 2).setValue("Used");      // Status
-      codesSheet.getRange(targetRow, 3).setValue(userId);      // UsedBy
-      codesSheet.getRange(targetRow, 4).setValue(new Date());  // Time
+        // 針對不同動作的反應
+        if (action === "scan") {
+          if (response.status === "success") {
+            alert(response.message); // 集點成功
+          } else {
+            alert(response.message); // 代碼無效或重複
+          }
+        } else if (action === "draw") {
+           if (response.status === "success") {
+             alert("🎉 " + response.message);
+           } else {
+             alert(response.message);
+           }
+        }
+      })
+      .catch(err => {
+        document.getElementById('loading').classList.add('hidden');
+        alert("連線失敗，請檢查網路");
+      });
+    }
 
-      // 3. 用戶加 1 點
-      let currentPoints = getUserPoints(ss, userId);
-      updateUserPoints(ss, userId, currentPoints + 1);
+    // 4. 更新畫面 (點數與按鈕狀態)
+    function updateUI(points) {
+      document.getElementById('points').innerText = points;
+      const btn = document.getElementById('btnDraw');
       
-      // 4. 回傳最新數據
-      return responseJSON({ 
-        status: "success", 
-        message: "集點成功！(+1點)", 
-        points: currentPoints + 1, 
-        history: getUserHistory(ss, userId) 
-      });
+      if (points >= 10) {
+        btn.disabled = false;
+        btn.innerText = "立即抽獎 (消耗10點)";
+      } else {
+        btn.disabled = true;
+        btn.innerText = `集滿 10 點可抽獎 (還差 ${10 - points} 點)`;
+      }
     }
 
-    // --- 狀況 C: 抽獎 (扣10點) ---
-    if (action === "draw") {
-      let currentPoints = getUserPoints(ss, userId);
+    // 5. 渲染歷史紀錄列表
+    function renderHistory(logs) {
+      const listDiv = document.getElementById('historyList');
+      listDiv.innerHTML = "";
       
-      if (currentPoints < 10) {
-        return responseJSON({ status: "error", message: "點數不足 10 點" });
+      if (logs.length === 0) {
+        listDiv.innerHTML = "<div style='color:#999; text-align:center;'>尚無紀錄</div>";
+        return;
       }
 
-      // 扣除點數
-      let newPoints = currentPoints - 10;
-      updateUserPoints(ss, userId, newPoints);
-
-      // 執行抽獎邏輯
-      const rand = Math.random();
-      let prize = "C獎"; // 預設
-      if (rand < 0.33) prize = "A獎";
-      else if (rand < 0.66) prize = "B獎";
-
-      // 寫入中獎紀錄
-      ss.getSheetByName(SHEET_AWARDS).appendRow([userId, prize, new Date()]);
-
-      return responseJSON({ 
-        status: "success", 
-        message: "恭喜獲得： " + prize, 
-        prize: prize, 
-        points: newPoints,
-        history: getUserHistory(ss, userId)
+      logs.forEach(log => {
+        const tagClass = log.type === "集點" ? "tag-scan" : "tag-draw";
+        const html = `
+          <div class="history-item">
+            <div>
+              <span class="tag ${tagClass}">${log.type}</span>
+              <span>${log.msg}</span>
+            </div>
+            <div class="time">${log.date}</div>
+          </div>
+        `;
+        listDiv.innerHTML += html;
       });
     }
 
-  } catch (err) {
-    return responseJSON({ status: "fatal_error", message: err.toString() });
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-// === 以下是輔助工具函式 ===
-
-// 1. 取得某人的點數
-function getUserPoints(ss, userId) {
-  const sheet = ss.getSheetByName(SHEET_USERS);
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(userId)) {
-      return parseInt(data[i][1]) || 0;
+    // 6. 按鈕事件
+    function handleDraw() {
+      if (confirm("確定要消耗 10 點進行抽獎嗎？")) {
+        document.getElementById('loading').classList.remove('hidden');
+        document.getElementById('loading').innerText = "抽獎中...";
+        callBackend("draw", {});
+      }
     }
-  }
-  return 0; // 沒找到人就回傳 0
-}
 
-// 2. 更新某人的點數 (如果人不在名單內會自動新增)
-function updateUserPoints(ss, userId, newPoints) {
-  const sheet = ss.getSheetByName(SHEET_USERS);
-  const data = sheet.getDataRange().getValues();
-  let found = false;
-  
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(userId)) {
-      sheet.getRange(i + 1, 2).setValue(newPoints);
-      found = true;
-      break;
+    function toggleHistory() {
+      const section = document.getElementById('historySection');
+      if (section.style.display === "block") {
+        section.style.display = "none";
+      } else {
+        section.style.display = "block";
+      }
     }
-  }
-  if (!found) {
-    sheet.appendRow([userId, newPoints]);
-  }
-}
-
-// 3. 取得歷史紀錄 (集點 + 抽獎)
-function getUserHistory(ss, userId) {
-  let logs = [];
-  
-  // 找集點紀錄
-  const codeData = ss.getSheetByName(SHEET_CODES).getDataRange().getValues();
-  for (let i = 1; i < codeData.length; i++) {
-    if (String(codeData[i][2]) === String(userId)) {
-      logs.push({ 
-        type: "集點", 
-        msg: "掃碼 " + codeData[i][0], 
-        time: new Date(codeData[i][3]).getTime() 
-      });
-    }
-  }
-  
-  // 找抽獎紀錄
-  const awardData = ss.getSheetByName(SHEET_AWARDS).getDataRange().getValues();
-  for (let i = 1; i < awardData.length; i++) {
-    if (String(awardData[i][0]) === String(userId)) {
-      logs.push({ 
-        type: "抽獎", 
-        msg: "獲得 " + awardData[i][1], 
-        time: new Date(awardData[i][2]).getTime() 
-      });
-    }
-  }
-
-  // 依照時間倒序排列 (新的在上面)
-  logs.sort((a, b) => b.time - a.time);
-
-  // 格式化時間，轉成好讀的字串
-  return logs.map(item => {
-    let d = new Date(item.time);
-    let timeStr = (d.getMonth()+1) + "/" + d.getDate() + " " + d.getHours() + ":" + d.getMinutes();
-    return { type: item.type, msg: item.msg, date: timeStr };
-  });
-}
-
-// 4. 回傳 JSON 給前端
-function responseJSON(data) {
-  return ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+  </script>
+</body>
+</html>
