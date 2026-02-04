@@ -1,83 +1,189 @@
-<hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+// ==========================================
+// LINE 集點卡後端系統 (完整版)
+// ==========================================
+
+const SHEET_USERS = "Users";
+const SHEET_CODES = "Codes";
+const SHEET_AWARDS = "Awards";
+
+function doPost(e) {
+  const lock = LockService.getScriptLock();
+  
+  try {
+    // 嘗試鎖定 10 秒，避免多人同時掃碼造成資料錯亂
+    lock.waitLock(10000); 
+
+    // 解析前端傳來的資料
+    const params = JSON.parse(e.postData.contents);
+    const action = params.action;
+    const userId = params.userId;
     
-    <button onclick="loadHistory()" style="background:#0099ff; font-size:16px; padding:10px 20px;">查看歷史紀錄</button>
-    
-    <div id="historyList" style="margin-top:20px; text-align:left; display:none;">
-      <h3>紀錄明細：</h3>
-      <ul id="historyUl" style="padding-left: 20px; color:#555;">
-        </ul>
-    </div>
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-<script>
-    // ... (LIFF init 保持不變) ...
+    // --- 狀況 A: 剛開啟頁面 (查詢點數 + 歷史紀錄) ---
+    if (action === "init") {
+      let points = getUserPoints(ss, userId);
+      let history = getUserHistory(ss, userId);
+      return responseJSON({ status: "success", points: points, history: history });
+    }
 
-    // 修改 callApi 的 callback 處理邏輯
-    function callApi(data) {
-      fetch(GAS_URL, {
-        method: "POST",
-        body: JSON.stringify(data)
-      })
-      .then(res => res.json())
-      .then(response => {
-        
-        // 1. 無論成功失敗，如果有回傳 points 就更新 UI (達成：掃描任意 Code 也能看點數)
-        if (response.points !== undefined) {
-          updateUI(response.points);
-        }
-
-        if (response.status === "success") {
-          if (data.action === "scan") {
-            alert(response.message); // 顯示集點成功
-            window.history.replaceState({}, document.title, window.location.pathname);
-            document.getElementById('status').innerText = "集點完成";
-          } else if (data.action === "draw") {
-            alert("恭喜獲得： " + response.prize + "！");
-            // 抽完獎自動重整歷史紀錄
-            loadHistory(); 
-          } else if (data.action === "getHistory") {
-             // 渲染歷史紀錄
-             renderHistory(response.history);
+    // --- 狀況 B: 掃描 QR Code ---
+    if (action === "scan") {
+      const code = params.code;
+      const codesSheet = ss.getSheetByName(SHEET_CODES);
+      const data = codesSheet.getDataRange().getValues();
+      
+      let targetRow = -1;
+      let message = "";
+      
+      // 1. 搜尋代碼
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][0]) === String(code)) { // 比對代碼
+          targetRow = i + 1;
+          // 檢查狀態
+          if (data[i][1] === "Used") {
+            let p = getUserPoints(ss, userId);
+            let h = getUserHistory(ss, userId);
+            return responseJSON({ status: "error", message: "此 QR Code 已被使用過！", points: p, history: h });
           }
-        } else {
-          // 2. 如果是 Error (例如代碼重複)，alert 錯誤訊息，但上面已經更新過點數了
-          alert(response.message);
-          document.getElementById('status').innerText = response.message;
+          break;
         }
-      })
-      .catch(err => {
-        console.error(err);
+      }
+
+      if (targetRow === -1) {
+        let p = getUserPoints(ss, userId);
+        let h = getUserHistory(ss, userId);
+        return responseJSON({ status: "error", message: "無效的 QR Code", points: p, history: h });
+      }
+
+      // 2. 標記代碼為已使用
+      codesSheet.getRange(targetRow, 2).setValue("Used");      // Status
+      codesSheet.getRange(targetRow, 3).setValue(userId);      // UsedBy
+      codesSheet.getRange(targetRow, 4).setValue(new Date());  // Time
+
+      // 3. 用戶加 1 點
+      let currentPoints = getUserPoints(ss, userId);
+      updateUserPoints(ss, userId, currentPoints + 1);
+      
+      // 4. 回傳最新數據
+      return responseJSON({ 
+        status: "success", 
+        message: "集點成功！(+1點)", 
+        points: currentPoints + 1, 
+        history: getUserHistory(ss, userId) 
       });
     }
 
-    // 新增：讀取歷史紀錄
-    function loadHistory() {
-      document.getElementById('status').innerText = "讀取紀錄中...";
-      callApi({ action: "getHistory", userId: currentUserId });
-    }
-
-    // 新增：顯示歷史紀錄到畫面上
-    function renderHistory(historyArray) {
-      const listDiv = document.getElementById('historyList');
-      const ul = document.getElementById('historyUl');
-      ul.innerHTML = ""; // 清空舊資料
+    // --- 狀況 C: 抽獎 (扣10點) ---
+    if (action === "draw") {
+      let currentPoints = getUserPoints(ss, userId);
       
-      if (historyArray.length === 0) {
-        ul.innerHTML = "<li>尚無紀錄</li>";
-      } else {
-        historyArray.forEach(item => {
-          // 顯示格式： [集點] 2023/10/01 - 掃描代碼 A123
-          let color = item.type === "抽獎" ? "red" : "green";
-          let li = document.createElement("li");
-          li.innerHTML = `<span style="color:${color}; font-weight:bold;">[${item.type}]</span> ${item.date}<br><small>${item.detail}</small>`;
-          li.style.marginBottom = "10px";
-          li.style.borderBottom = "1px solid #eee";
-          ul.appendChild(li);
-        });
+      if (currentPoints < 10) {
+        return responseJSON({ status: "error", message: "點數不足 10 點" });
       }
-      
-      listDiv.style.display = "block"; // 顯示區塊
-      document.getElementById('status').innerText = "紀錄讀取完畢";
+
+      // 扣除點數
+      let newPoints = currentPoints - 10;
+      updateUserPoints(ss, userId, newPoints);
+
+      // 執行抽獎邏輯
+      const rand = Math.random();
+      let prize = "C獎"; // 預設
+      if (rand < 0.33) prize = "A獎";
+      else if (rand < 0.66) prize = "B獎";
+
+      // 寫入中獎紀錄
+      ss.getSheetByName(SHEET_AWARDS).appendRow([userId, prize, new Date()]);
+
+      return responseJSON({ 
+        status: "success", 
+        message: "恭喜獲得： " + prize, 
+        prize: prize, 
+        points: newPoints,
+        history: getUserHistory(ss, userId)
+      });
     }
 
-    // ... (updateUI, drawPrize 保持不變) ...
-</script>
+  } catch (err) {
+    return responseJSON({ status: "fatal_error", message: err.toString() });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// === 以下是輔助工具函式 ===
+
+// 1. 取得某人的點數
+function getUserPoints(ss, userId) {
+  const sheet = ss.getSheetByName(SHEET_USERS);
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(userId)) {
+      return parseInt(data[i][1]) || 0;
+    }
+  }
+  return 0; // 沒找到人就回傳 0
+}
+
+// 2. 更新某人的點數 (如果人不在名單內會自動新增)
+function updateUserPoints(ss, userId, newPoints) {
+  const sheet = ss.getSheetByName(SHEET_USERS);
+  const data = sheet.getDataRange().getValues();
+  let found = false;
+  
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(userId)) {
+      sheet.getRange(i + 1, 2).setValue(newPoints);
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    sheet.appendRow([userId, newPoints]);
+  }
+}
+
+// 3. 取得歷史紀錄 (集點 + 抽獎)
+function getUserHistory(ss, userId) {
+  let logs = [];
+  
+  // 找集點紀錄
+  const codeData = ss.getSheetByName(SHEET_CODES).getDataRange().getValues();
+  for (let i = 1; i < codeData.length; i++) {
+    if (String(codeData[i][2]) === String(userId)) {
+      logs.push({ 
+        type: "集點", 
+        msg: "掃碼 " + codeData[i][0], 
+        time: new Date(codeData[i][3]).getTime() 
+      });
+    }
+  }
+  
+  // 找抽獎紀錄
+  const awardData = ss.getSheetByName(SHEET_AWARDS).getDataRange().getValues();
+  for (let i = 1; i < awardData.length; i++) {
+    if (String(awardData[i][0]) === String(userId)) {
+      logs.push({ 
+        type: "抽獎", 
+        msg: "獲得 " + awardData[i][1], 
+        time: new Date(awardData[i][2]).getTime() 
+      });
+    }
+  }
+
+  // 依照時間倒序排列 (新的在上面)
+  logs.sort((a, b) => b.time - a.time);
+
+  // 格式化時間，轉成好讀的字串
+  return logs.map(item => {
+    let d = new Date(item.time);
+    let timeStr = (d.getMonth()+1) + "/" + d.getDate() + " " + d.getHours() + ":" + d.getMinutes();
+    return { type: item.type, msg: item.msg, date: timeStr };
+  });
+}
+
+// 4. 回傳 JSON 給前端
+function responseJSON(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
