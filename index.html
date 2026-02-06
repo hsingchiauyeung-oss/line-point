@@ -6,22 +6,21 @@
   <title>幸運集點卡</title>
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
-    /* === 1. 核心基礎樣式 === */
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; text-align: center; color: #333; overflow-x: hidden; }
+    /* === 1. 基礎樣式 === */
+    body { font-family: sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; text-align: center; color: #333; overflow-x: hidden; }
     .card { background: white; padding: 30px 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; position: relative; z-index: 1;}
     h2 { margin: 0; font-size: 18px; color: #666; }
     #points { font-size: 64px; font-weight: bold; color: #00B900; margin: 10px 0; line-height: 1; transition: transform 0.2s; }
     
-    /* === 2. 按鈕群 === */
-    .btn { display: block; width: 100%; padding: 15px 0; border-radius: 50px; border: none; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 15px; transition: 0.2s; }
-    .btn-draw { background-color: #ff9800; color: white; box-shadow: 0 4px 0 #e68900; }
-    .btn-draw:active { box-shadow: 0 2px 0 #e68900; transform: translateY(2px); }
-    .btn-draw:disabled { background-color: #ccc; box-shadow: none; cursor: not-allowed; }
+    /* === 2. 按鈕 === */
+    .btn { display: block; width: 100%; padding: 15px 0; border-radius: 50px; border: none; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 15px; }
+    .btn-draw { background-color: #ff9800; color: white; }
+    .btn-draw:disabled { background-color: #ccc; cursor: not-allowed; }
     .btn-history { background-color: #e4e6eb; color: #333; }
     .btn-redeem { background: #00B900; color: white; border: none; padding: 6px 16px; border-radius: 20px; font-size: 14px; cursor: pointer; }
-    .status-claimed { color: #999; font-size: 12px; background: #eee; padding: 4px 8px; border-radius: 4px;}
     
-    /* === 3. 歷史紀錄 === */
+    /* === 3. 歷史紀錄與狀態 === */
+    .status-claimed { color: #999; font-size: 12px; background: #eee; padding: 4px 8px; border-radius: 4px;}
     #historySection { margin-top: 25px; text-align: left; display: none; border-top: 1px solid #eee; padding-top: 20px; }
     .history-item { padding: 15px 0; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center; }
     .tag { padding: 2px 6px; border-radius: 4px; font-size: 12px; margin-right:5px; }
@@ -29,44 +28,36 @@
     .tag-draw { background: #fff1f0; color: #f5222d; }
     .time { font-size: 12px; color: #999; display:block; margin-top:2px; }
 
-    /* === 4. 轉盤特效模組 === */
+    /* === 4. 轉盤模組 === */
     #wheelModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
-    #canvasContainer { position: relative; margin-bottom: 20px; }
-    #pointer { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-top: 40px solid #ff3333; z-index: 10; filter: drop-shadow(0 4px 2px rgba(0,0,0,0.3)); }
-    #wheelStatus { color: white; font-size: 22px; font-weight: bold; margin-top: 20px; min-height: 30px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+    #pointer { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-top: 40px solid #ff3333; z-index: 10; }
+    #wheelStatus { color: white; font-size: 22px; font-weight: bold; margin-top: 20px; }
 
-    /* === 5. 核銷碼彈窗 (方案C) === */
-    #redeemModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 2000; }
-    .redeem-box { background: white; width: 85%; max-width: 320px; padding: 30px; border-radius: 16px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-    .code-display { font-size: 28px; font-weight: bold; color: #333; background: #f0f2f5; padding: 15px; margin: 20px 0; border-radius: 8px; letter-spacing: 2px; border: 2px dashed #ccc; user-select: all;}
-    .close-btn { background: #666; color: white; padding: 10px 30px; border-radius: 50px; border: none; font-size: 16px; cursor: pointer; }
-
-    /* === 6. ★ 新增：集點蓋章專用動畫介面 === */
+    /* === 5. 蓋章動畫 (掃碼專用) === */
     #scanOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 3000; transition: opacity 0.5s; }
     .ticket { background: white; width: 300px; height: 180px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; border: 2px dashed #ccc; }
-    .ticket-text { font-size: 18px; color: #666; margin-bottom: 10px; }
-    .ticket-dots { display: flex; gap: 8px; }
+    .ticket-dots { display: flex; gap: 8px; margin-top: 10px;}
     .dot { width: 12px; height: 12px; background: #eee; border-radius: 50%; animation: blink 1.5s infinite; }
     .dot:nth-child(2) { animation-delay: 0.2s; }
     .dot:nth-child(3) { animation-delay: 0.4s; }
     
-    /* 蓋章特效 */
     .stamp-mark { 
         position: absolute; width: 140px; height: 140px; border: 5px solid #d32f2f; border-radius: 50%; 
         color: #d32f2f; font-size: 40px; font-weight: 900; display: flex; align-items: center; justify-content: center; 
-        transform: scale(3); opacity: 0; pointer-events: none; text-transform: uppercase; letter-spacing: 2px;
-        text-shadow: 2px 2px 0px rgba(255,255,255,0.5); box-shadow: inset 0 0 0 5px #d32f2f;
+        transform: scale(3); opacity: 0; pointer-events: none; text-shadow: 2px 2px 0px rgba(255,255,255,0.5);
         background: rgba(255, 255, 255, 0.9);
     }
     .stamp-active { animation: stamp-slam 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-    
     @keyframes blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
-    @keyframes stamp-slam { 
-        0% { transform: scale(3) rotate(-15deg); opacity: 0; } 
-        100% { transform: scale(1) rotate(-15deg); opacity: 1; } 
-    }
-    
-    /* 簡單讀取 */
+    @keyframes stamp-slam { 0% { transform: scale(3) rotate(-15deg); opacity: 0; } 100% { transform: scale(1) rotate(-15deg); opacity: 1; } }
+
+    /* === 6. 核銷碼彈窗 === */
+    #redeemModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 2000; }
+    .redeem-box { background: white; width: 85%; max-width: 320px; padding: 30px; border-radius: 16px; text-align: center; }
+    .code-display { font-size: 28px; font-weight: bold; color: #333; background: #f0f2f5; padding: 15px; margin: 20px 0; border-radius: 8px; letter-spacing: 2px; border: 2px dashed #ccc; }
+    .close-btn { background: #666; color: white; padding: 10px 30px; border-radius: 50px; border: none; cursor: pointer; }
+
+    /* 讀取中 */
     #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: flex; align-items: center; justify-content: center; z-index: 4000; font-weight: bold; flex-direction: column;}
     .hidden { display: none !important; }
   </style>
@@ -77,27 +68,24 @@
 
   <div id="scanOverlay" class="hidden">
     <div class="ticket">
-      <div class="ticket-text">票券驗證中...</div>
-      <div class="ticket-dots">
-        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-      </div>
+      <div style="font-size:18px; color:#666;">票券驗證中...</div>
+      <div class="ticket-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
       <div id="stampEffect" class="stamp-mark">GET!</div>
     </div>
-    <div style="margin-top:20px; color:#999; font-size:14px;">請勿關閉視窗</div>
   </div>
 
   <div id="wheelModal">
-    <div id="canvasContainer">
+    <div style="position: relative; margin-bottom: 20px;">
       <div id="pointer"></div>
       <canvas id="wheelCanvas" width="320" height="320"></canvas>
     </div>
-    <div id="wheelStatus">幸運轉盤轉動中...</div>
+    <div id="wheelStatus">轉動中...</div>
   </div>
 
   <div id="redeemModal">
     <div class="redeem-box">
       <h3 style="margin-top:0;">🎉 兌換成功！</h3>
-      <p>請截圖或複製下方代碼<br>傳送給客服人員進行出貨</p>
+      <p>請將此代碼截圖傳給客服</p>
       <div class="code-display" id="myRedeemCode">...</div>
       <button class="close-btn" onclick="closeRedeemModal()">關閉</button>
     </div>
@@ -107,12 +95,8 @@
     <h2>目前累積點數</h2>
     <div id="points">--</div>
     
-    <button id="btnDraw" class="btn btn-draw" disabled onclick="handleDrawClick()">
-      🎰 消耗 10 點轉盤抽獎
-    </button>
-    <button class="btn btn-history" onclick="toggleHistory()">
-      查看歷史與獎品
-    </button>
+    <button id="btnDraw" class="btn btn-draw" disabled onclick="handleDrawClick()">🎰 消耗 10 點轉盤抽獎</button>
+    <button class="btn btn-history" onclick="toggleHistory()">查看歷史與獎品</button>
 
     <div id="historySection">
       <h3 style="font-size:16px; margin-bottom:10px;">紀錄與獎品</h3>
@@ -122,16 +106,16 @@
 
   <script>
     // ==========================================
-    // ★ 設定區
+    // ★ 設定區 (填入你的 ID)
     // ==========================================
     const LIFF_ID = "2009057632-82QgHeXo"; 
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyeuSQh30wwY5gStEO1JPHt4WGOHWtmLTiLD6ui9EyLIKj6Y3wFqHReYNTKPOm5yLjaRQ/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxyLQqmU0j493lUYa477L4VNTQJ41mTxl3hNYLk9NmiO2pwnHewPTmQrIUuZHi2f5P5YQ/exec"; 
     // ==========================================
 
     let currentUserId = null;
     let currentPoints = 0;
 
-    // 轉盤變數
+    // 轉盤設定
     const prizes = ["A賞", "B賞", "C賞"]; 
     const colors = ["#FF6384", "#36A2EB", "#FFCE56"];
     let startAngle = 0;
@@ -150,11 +134,11 @@
         liff.getProfile().then(profile => {
           currentUserId = profile.userId;
           mainLogic();
-          drawRouletteWheel(); 
+          drawRouletteWheel();
         });
       }
     }).catch(err => {
-      alert("LIFF 初始化失敗");
+      alert("LIFF 啟動失敗");
       document.getElementById('loading').classList.add('hidden');
     });
 
@@ -163,24 +147,21 @@
       const code = urlParams.get('code');
       
       if (code) {
-        // ★ 如果是掃碼進來：隱藏 Loading，改顯示「驗票中」的蓋章介面
+        // 掃碼模式：隱藏普通 Loading，顯示蓋章遮罩
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('scanOverlay').classList.remove('hidden');
-        
         callBackend("scan", { code: code });
-        
-        // 避免重新整理重複集點
         window.history.replaceState({}, document.title, window.location.pathname);
       } else {
         callBackend("init", {});
       }
     }
 
-    // 2. 後端通訊
+    // 2. 呼叫後端
     function callBackend(action, payload) {
       const data = { action: action, userId: currentUserId, ...payload };
-
-      // 只有初始化才顯示白底 Loading，掃碼會用專用介面
+      
+      // 只有初始化才顯示白底 Loading
       if(action === 'init') document.getElementById('loading').classList.remove('hidden');
 
       fetch(GAS_URL, {
@@ -191,78 +172,53 @@
       .then(res => res.text())
       .then(text => JSON.parse(text))
       .then(response => {
-        
         if(action === 'init') document.getElementById('loading').classList.add('hidden');
 
-        // 錯誤處理
         if (response.status === "fatal_error") {
-            if(action === 'scan') { alert("錯誤：" + response.message); document.getElementById('scanOverlay').classList.add('hidden'); }
+            if(action === 'scan') { alert(response.message); document.getElementById('scanOverlay').classList.add('hidden'); }
             else if(action === 'draw') stopWheelError();
-            else alert("系統錯誤：" + response.message);
+            else alert("錯誤：" + response.message);
             return;
         }
 
-        // 更新數據
-        if (response.history !== undefined) renderHistory(response.history);
         if (response.points !== undefined) {
-             // 如果是集點成功，先不更新 UI，等動畫跑完
-             if(action !== 'scan') {
-                 currentPoints = response.points;
-                 updateUI(response.points);
-             }
+             if(action !== 'scan') { currentPoints = response.points; updateUI(response.points); }
         }
+        if (response.history !== undefined) renderHistory(response.history);
 
-        // --- 針對不同動作的 UX 優化 ---
-        
+        // --- 動作分流 ---
         if (action === "scan") {
-            // ★ 集點成功特效
-            if(response.status === 'success') {
-                playStampAnimation(response.points); // 播放蓋章
-            } else {
-                alert(response.message); // 代碼錯誤
-                document.getElementById('scanOverlay').classList.add('hidden');
-            }
+            if(response.status === 'success') playStampAnimation(response.points);
+            else { alert(response.message); document.getElementById('scanOverlay').classList.add('hidden'); }
         }
-        else if (action === "redeem") {
-            showRedeemCode(response);
-        }
+        else if (action === "redeem") showRedeemCode(response);
         else if (action === "draw") {
-          if (response.status === "success") {
-             calculateStopAngle(response.prize);
-          } else {
-             alert(response.message);
-             stopWheelError();
-          }
+          if (response.status === "success") calculateStopAngle(response.prize);
+          else { alert(response.message); stopWheelError(); }
         }
       })
       .catch(err => {
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('scanOverlay').classList.add('hidden');
+        if(action === 'draw') stopWheelError();
         alert("連線失敗：" + err.message);
       });
     }
 
-    // ==========================================
-    // ★ 蓋章動畫邏輯
-    // ==========================================
+    // --- 蓋章特效 ---
     function playStampAnimation(newPoints) {
-        // 1. 播放蓋章動畫
         const stamp = document.getElementById('stampEffect');
         stamp.classList.add('stamp-active');
-        
-        // 2. 震動手機 (提升手感)
         if (navigator.vibrate) navigator.vibrate(50);
 
-        // 3. 停留 1.5 秒讓使用者享受成功的感覺
         setTimeout(() => {
-            // 隱藏遮罩
             document.getElementById('scanOverlay').style.opacity = '0';
             setTimeout(() => {
                 document.getElementById('scanOverlay').classList.add('hidden');
-                document.getElementById('scanOverlay').style.opacity = '1'; // 復原
-                stamp.classList.remove('stamp-active'); // 復原
+                document.getElementById('scanOverlay').style.opacity = '1';
+                stamp.classList.remove('stamp-active');
                 
-                // 4. 數字滾動特效 (從舊點數滾到新點數)
+                // 數字滾動
                 animateValue("points", currentPoints, newPoints, 1000);
                 currentPoints = newPoints;
                 updateUI(newPoints);
@@ -270,7 +226,6 @@
         }, 1500);
     }
 
-    // 數字滾動函式
     function animateValue(id, start, end, duration) {
         if (start === end) return;
         const range = end - start;
@@ -278,30 +233,21 @@
         const increment = end > start ? 1 : -1;
         const stepTime = Math.abs(Math.floor(duration / range));
         const obj = document.getElementById(id);
-        
         const timer = setInterval(function() {
             current += increment;
             obj.innerHTML = current;
-            // 每次跳動稍微放大一下
             obj.style.transform = "scale(1.2)";
             setTimeout(() => obj.style.transform = "scale(1)", 100);
-            
-            if (current == end) {
-                clearInterval(timer);
-            }
-        }, Math.max(stepTime, 50)); // 最快每50ms跳一次
+            if (current == end) clearInterval(timer);
+        }, Math.max(stepTime, 50));
     }
 
-
-    // ==========================================
-    // 轉盤邏輯 (保持優化版)
-    // ==========================================
+    // --- 轉盤邏輯 (零延遲) ---
     function handleDrawClick() {
         if (currentPoints < 10) return alert("點數不足！");
-        if (!confirm("確定要消耗 10 點進行轉盤抽獎嗎？")) return;
+        if (!confirm("確定消耗 10 點抽獎？")) return;
 
         document.getElementById('wheelModal').style.display = "flex";
-        document.getElementById('wheelStatus').innerText = "幸運轉盤轉動中...";
         isSpinning = true;
         spinSpeed = 0.5;
         targetAngle = -1;
@@ -337,7 +283,6 @@
 
     function calculateStopAngle(prizeName) {
         finalPrizeForAlert = prizeName;
-        document.getElementById('wheelStatus').innerText = "即將揭曉...";
         const prizeIndex = prizes.indexOf(prizeName);
         const degreePerSlice = (2 * Math.PI) / prizes.length;
         const prizeCenterRel = (prizeIndex * degreePerSlice) + (degreePerSlice / 2);
@@ -357,26 +302,20 @@
       const canvas = document.getElementById("wheelCanvas");
       if (!canvas.getContext) return;
       ctx = canvas.getContext("2d");
-      const outsideRadius = 150;
-      const textRadius = 110;
-      const insideRadius = 0;
       ctx.clearRect(0, 0, 320, 320);
-      ctx.strokeStyle = "white";
-      ctx.lineWidth = 2;
-      ctx.font = 'bold 24px sans-serif';
-
+      
       for(let i = 0; i < prizes.length; i++) {
         const angle = startAngle + i * arc;
         ctx.fillStyle = colors[i];
         ctx.beginPath();
-        ctx.arc(160, 160, outsideRadius, angle, angle + arc, false);
-        ctx.arc(160, 160, insideRadius, angle + arc, angle, true);
-        ctx.stroke();
+        ctx.arc(160, 160, 150, angle, angle + arc, false);
+        ctx.arc(160, 160, 0, angle + arc, angle, true);
         ctx.fill();
         ctx.save();
         ctx.fillStyle = "white";
-        ctx.translate(160 + Math.cos(angle + arc / 2) * textRadius, 
-                      160 + Math.sin(angle + arc / 2) * textRadius);
+        ctx.font = 'bold 24px sans-serif';
+        ctx.translate(160 + Math.cos(angle + arc / 2) * 110, 
+                      160 + Math.sin(angle + arc / 2) * 110);
         ctx.rotate(angle + arc / 2 + Math.PI / 2);
         const text = prizes[i];
         ctx.fillText(text, -ctx.measureText(text).width / 2, 0);
@@ -384,9 +323,7 @@
       } 
     }
 
-    // ==========================================
-    // 方案 C：核銷直接顯示代碼
-    // ==========================================
+    // --- 核銷 (直接顯示代碼) ---
     function showRedeemCode(response) {
         if (response.status === "success") {
             document.getElementById('myRedeemCode').innerText = response.code;
@@ -400,7 +337,7 @@
         callBackend("init", {}); 
     }
 
-    // 其他 UI
+    // --- UI 更新 ---
     function updateUI(points) {
       document.getElementById('points').innerText = points;
       const btn = document.getElementById('btnDraw');
@@ -409,7 +346,7 @@
         btn.innerHTML = "🎰 消耗 10 點轉盤抽獎";
       } else {
         btn.disabled = true;
-        btn.innerText = `集滿 10 點可抽獎 (還差 ${10 - points} 點)`;
+        btn.innerHTML = `集滿 10 點可抽獎<br><span style="font-size:14px">(還差 ${10 - points} 點)</span>`;
       }
     }
 
@@ -421,21 +358,20 @@
         let actionArea = "";
         if (log.type === "抽獎") {
           if (log.status === "Unclaimed") {
-            actionArea = `<button class="btn-redeem" onclick="handleRedeem(${log.rowIndex}, '${log.msg}')">領獎</button>`;
+            actionArea = `<button class="btn-redeem" onclick="handleRedeem(${log.rowIndex})">領獎</button>`;
           } else if (log.status === "Claimed") {
             actionArea = `<span class="status-claimed">已兌換</span>`;
           }
         }
         const tagClass = log.type === "集點" ? "tag-scan" : "tag-draw";
-        const html = `<div class="history-item"><div style="text-align:left;"><span class="tag ${tagClass}">${log.type}</span><span style="font-weight:500;">${log.msg}</span><span class="time">${log.date}</span></div><div>${actionArea}</div></div>`;
-        listDiv.innerHTML += html;
+        listDiv.innerHTML += `<div class="history-item"><div style="text-align:left;"><span class="tag ${tagClass}">${log.type}</span><span style="font-weight:500;">${log.msg}</span><span class="time">${log.date}</span></div><div>${actionArea}</div></div>`;
       });
     }
 
-    function handleRedeem(rowIndex, prizeName) {
-      if (confirm(`確定要兌換【${prizeName}】嗎？\n\n系統將產生核銷碼。`)) {
+    function handleRedeem(rowIndex) {
+      if (confirm("確定要兌換嗎？將產生核銷代碼。")) {
         document.getElementById('loading').classList.remove('hidden');
-        callBackend("redeem", { rowIndex: rowIndex, prizeName: prizeName });
+        callBackend("redeem", { rowIndex: rowIndex });
       }
     }
     function toggleHistory() {
