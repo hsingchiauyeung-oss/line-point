@@ -6,22 +6,22 @@
   <title>幸運集點卡</title>
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
-    /* === 1. 整體排版樣式 === */
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; text-align: center; color: #333; }
-    .card { background: white; padding: 30px 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
+    /* === 1. 核心基礎樣式 === */
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; text-align: center; color: #333; overflow-x: hidden; }
+    .card { background: white; padding: 30px 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; position: relative; z-index: 1;}
     h2 { margin: 0; font-size: 18px; color: #666; }
-    #points { font-size: 64px; font-weight: bold; color: #00B900; margin: 10px 0; line-height: 1; }
+    #points { font-size: 64px; font-weight: bold; color: #00B900; margin: 10px 0; line-height: 1; transition: transform 0.2s; }
     
-    /* === 2. 按鈕樣式 === */
+    /* === 2. 按鈕群 === */
     .btn { display: block; width: 100%; padding: 15px 0; border-radius: 50px; border: none; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 15px; transition: 0.2s; }
     .btn-draw { background-color: #ff9800; color: white; box-shadow: 0 4px 0 #e68900; }
     .btn-draw:active { box-shadow: 0 2px 0 #e68900; transform: translateY(2px); }
     .btn-draw:disabled { background-color: #ccc; box-shadow: none; cursor: not-allowed; }
     .btn-history { background-color: #e4e6eb; color: #333; }
-    .btn-redeem { background: #00B900; color: white; border: none; padding: 5px 15px; border-radius: 20px; font-size: 14px; cursor: pointer; }
+    .btn-redeem { background: #00B900; color: white; border: none; padding: 6px 16px; border-radius: 20px; font-size: 14px; cursor: pointer; }
+    .status-claimed { color: #999; font-size: 12px; background: #eee; padding: 4px 8px; border-radius: 4px;}
     
-    /* === 3. 歷史紀錄列表樣式 === */
-    .status-claimed { color: #999; font-size: 12px; }
+    /* === 3. 歷史紀錄 === */
     #historySection { margin-top: 25px; text-align: left; display: none; border-top: 1px solid #eee; padding-top: 20px; }
     .history-item { padding: 15px 0; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center; }
     .tag { padding: 2px 6px; border-radius: 4px; font-size: 12px; margin-right:5px; }
@@ -29,23 +29,61 @@
     .tag-draw { background: #fff1f0; color: #f5222d; }
     .time { font-size: 12px; color: #999; display:block; margin-top:2px; }
 
-    /* === 4. 轉盤模態視窗 (全螢幕遮罩) === */
+    /* === 4. 轉盤特效模組 === */
     #wheelModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
     #canvasContainer { position: relative; margin-bottom: 20px; }
-    /* 紅色指針 (位於正上方) */
-    #pointer { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-top: 40px solid #ff3333; z-index: 10; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5)); }
-    #wheelStatus { color: white; font-size: 22px; font-weight: bold; margin-top: 20px; min-height: 30px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);}
+    #pointer { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-top: 40px solid #ff3333; z-index: 10; filter: drop-shadow(0 4px 2px rgba(0,0,0,0.3)); }
+    #wheelStatus { color: white; font-size: 22px; font-weight: bold; margin-top: 20px; min-height: 30px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
 
-    /* === 5. 讀取中遮罩 === */
-    #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: flex; align-items: center; justify-content: center; z-index: 2000; font-weight: bold; flex-direction: column;}
+    /* === 5. 核銷碼彈窗 (方案C) === */
+    #redeemModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 2000; }
+    .redeem-box { background: white; width: 85%; max-width: 320px; padding: 30px; border-radius: 16px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .code-display { font-size: 28px; font-weight: bold; color: #333; background: #f0f2f5; padding: 15px; margin: 20px 0; border-radius: 8px; letter-spacing: 2px; border: 2px dashed #ccc; user-select: all;}
+    .close-btn { background: #666; color: white; padding: 10px 30px; border-radius: 50px; border: none; font-size: 16px; cursor: pointer; }
+
+    /* === 6. ★ 新增：集點蓋章專用動畫介面 === */
+    #scanOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 3000; transition: opacity 0.5s; }
+    .ticket { background: white; width: 300px; height: 180px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; border: 2px dashed #ccc; }
+    .ticket-text { font-size: 18px; color: #666; margin-bottom: 10px; }
+    .ticket-dots { display: flex; gap: 8px; }
+    .dot { width: 12px; height: 12px; background: #eee; border-radius: 50%; animation: blink 1.5s infinite; }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    
+    /* 蓋章特效 */
+    .stamp-mark { 
+        position: absolute; width: 140px; height: 140px; border: 5px solid #d32f2f; border-radius: 50%; 
+        color: #d32f2f; font-size: 40px; font-weight: 900; display: flex; align-items: center; justify-content: center; 
+        transform: scale(3); opacity: 0; pointer-events: none; text-transform: uppercase; letter-spacing: 2px;
+        text-shadow: 2px 2px 0px rgba(255,255,255,0.5); box-shadow: inset 0 0 0 5px #d32f2f;
+        background: rgba(255, 255, 255, 0.9);
+    }
+    .stamp-active { animation: stamp-slam 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+    
+    @keyframes blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+    @keyframes stamp-slam { 
+        0% { transform: scale(3) rotate(-15deg); opacity: 0; } 
+        100% { transform: scale(1) rotate(-15deg); opacity: 1; } 
+    }
+    
+    /* 簡單讀取 */
+    #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: flex; align-items: center; justify-content: center; z-index: 4000; font-weight: bold; flex-direction: column;}
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
-  <div id="loading">
-    <div>系統連線中...</div>
-    <div style="font-size:12px; color:#999; margin-top:5px;">請稍候</div>
+  <div id="loading"><div>系統連線中...</div></div>
+
+  <div id="scanOverlay" class="hidden">
+    <div class="ticket">
+      <div class="ticket-text">票券驗證中...</div>
+      <div class="ticket-dots">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>
+      <div id="stampEffect" class="stamp-mark">GET!</div>
+    </div>
+    <div style="margin-top:20px; color:#999; font-size:14px;">請勿關閉視窗</div>
   </div>
 
   <div id="wheelModal">
@@ -53,17 +91,25 @@
       <div id="pointer"></div>
       <canvas id="wheelCanvas" width="320" height="320"></canvas>
     </div>
-    <div id="wheelStatus">準備抽獎...</div>
+    <div id="wheelStatus">幸運轉盤轉動中...</div>
+  </div>
+
+  <div id="redeemModal">
+    <div class="redeem-box">
+      <h3 style="margin-top:0;">🎉 兌換成功！</h3>
+      <p>請截圖或複製下方代碼<br>傳送給客服人員進行出貨</p>
+      <div class="code-display" id="myRedeemCode">...</div>
+      <button class="close-btn" onclick="closeRedeemModal()">關閉</button>
+    </div>
   </div>
 
   <div class="card">
     <h2>目前累積點數</h2>
     <div id="points">--</div>
     
-    <button id="btnDraw" class="btn btn-draw" disabled onclick="startDrawFlow()">
+    <button id="btnDraw" class="btn btn-draw" disabled onclick="handleDrawClick()">
       🎰 消耗 10 點轉盤抽獎
     </button>
-    
     <button class="btn btn-history" onclick="toggleHistory()">
       查看歷史與獎品
     </button>
@@ -76,69 +122,66 @@
 
   <script>
     // ==========================================
-    // ★ 請在此填入您的資料 (重要！)
+    // ★ 設定區
     // ==========================================
-    const LIFF_ID = "2009057632-82QgHeXo";  // 新建立的那個
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyeuSQh30wwY5gStEO1JPHt4WGOHWtmLTiLD6ui9EyLIKj6Y3wFqHReYNTKPOm5yLjaRQ/exec"; // 部署後的 exec 網址
-    const LINE_OA_ID = "@539gosmt"; // 例如 @123xyz
+    const LIFF_ID = "2009057632-82QgHeXo"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyeuSQh30wwY5gStEO1JPHt4WGOHWtmLTiLD6ui9EyLIKj6Y3wFqHReYNTKPOm5yLjaRQ/exec"; 
     // ==========================================
 
     let currentUserId = null;
-    
-    // === 轉盤參數設定 ===
-    const prizes = ["A賞", "B賞", "C賞"]; // 必須跟後端 GAS 的獎品名稱完全一致
-    const colors = ["#FF6384", "#36A2EB", "#FFCE56"]; // 對應的顏色
-    
-    // 動畫控制變數
-    let startAngle = 0; // 轉盤當前角度 (弧度)
-    let arc = Math.PI / (prizes.length / 2);
-    let spinTimeout = null;
-    let spinTime = 0;
-    let spinTimeTotal = 0;
-    let targetRotation = 0; // 目標總旋轉角度 (度)
-    let initialRotation = 0; // 起始角度 (度)
-    
-    let ctx;
-    let finalPrize = ""; // 後端回傳的最終獎品
+    let currentPoints = 0;
 
-    // 1. LIFF 初始化流程
+    // 轉盤變數
+    const prizes = ["A賞", "B賞", "C賞"]; 
+    const colors = ["#FF6384", "#36A2EB", "#FFCE56"];
+    let startAngle = 0;
+    let arc = Math.PI / (prizes.length / 2);
+    let ctx;
+    let isSpinning = false;
+    let spinFrameId = null;
+    let spinSpeed = 0;
+    let targetAngle = -1;
+    let finalPrizeForAlert = "";
+
+    // 1. 初始化
     liff.init({ liffId: LIFF_ID }).then(() => {
-      if (!liff.isLoggedIn()) {
-        liff.login();
-      } else {
+      if (!liff.isLoggedIn()) liff.login();
+      else {
         liff.getProfile().then(profile => {
           currentUserId = profile.userId;
-          mainLogic(); // 開始執行主程式
-          drawRouletteWheel(); // 先畫出靜態轉盤
+          mainLogic();
+          drawRouletteWheel(); 
         });
       }
     }).catch(err => {
-      alert("LIFF 初始化失敗，請檢查 LIFF ID 是否正確");
+      alert("LIFF 初始化失敗");
       document.getElementById('loading').classList.add('hidden');
     });
 
-    // 2. 主邏輯判斷 (集點 vs 查詢)
     function mainLogic() {
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
+      
       if (code) {
-        // 有 code 代表是掃描 QR code 進來的
-        document.getElementById('loading').innerHTML = "集點處理中...";
+        // ★ 如果是掃碼進來：隱藏 Loading，改顯示「驗票中」的蓋章介面
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('scanOverlay').classList.remove('hidden');
+        
         callBackend("scan", { code: code });
-        // 清除網址參數，避免重新整理時重複集點
+        
+        // 避免重新整理重複集點
         window.history.replaceState({}, document.title, window.location.pathname);
       } else {
-        // 沒有 code 代表是從圖文選單進來的
         callBackend("init", {});
       }
     }
 
-    // 3. 後端 API 呼叫函式
+    // 2. 後端通訊
     function callBackend(action, payload) {
       const data = { action: action, userId: currentUserId, ...payload };
-      
-      // 如果不是抽獎 (抽獎有自己的轉盤 loading)，就顯示全螢幕讀取
-      if(action !== 'draw') document.getElementById('loading').classList.remove('hidden');
+
+      // 只有初始化才顯示白底 Loading，掃碼會用專用介面
+      if(action === 'init') document.getElementById('loading').classList.remove('hidden');
 
       fetch(GAS_URL, {
         method: "POST",
@@ -148,45 +191,168 @@
       .then(res => res.text())
       .then(text => JSON.parse(text))
       .then(response => {
-        document.getElementById('loading').classList.add('hidden');
         
+        if(action === 'init') document.getElementById('loading').classList.add('hidden');
+
         // 錯誤處理
-        if (response.status === "fatal_error") return alert("系統錯誤：" + response.message);
+        if (response.status === "fatal_error") {
+            if(action === 'scan') { alert("錯誤：" + response.message); document.getElementById('scanOverlay').classList.add('hidden'); }
+            else if(action === 'draw') stopWheelError();
+            else alert("系統錯誤：" + response.message);
+            return;
+        }
 
-        // 更新介面數據
-        if (response.points !== undefined) updateUI(response.points);
+        // 更新數據
         if (response.history !== undefined) renderHistory(response.history);
+        if (response.points !== undefined) {
+             // 如果是集點成功，先不更新 UI，等動畫跑完
+             if(action !== 'scan') {
+                 currentPoints = response.points;
+                 updateUI(response.points);
+             }
+        }
 
-        // 針對不同動作的後續處理
+        // --- 針對不同動作的 UX 優化 ---
+        
         if (action === "scan") {
-            alert(response.message);
+            // ★ 集點成功特效
+            if(response.status === 'success') {
+                playStampAnimation(response.points); // 播放蓋章
+            } else {
+                alert(response.message); // 代碼錯誤
+                document.getElementById('scanOverlay').classList.add('hidden');
+            }
         }
         else if (action === "redeem") {
-            handleRedeemResponse(response, payload.prizeName);
+            showRedeemCode(response);
         }
         else if (action === "draw") {
           if (response.status === "success") {
-             // ★ 關鍵：拿到後端結果，開始計算並轉動轉盤
-             finalPrize = response.prize; 
-             calculateTargetAndSpin(finalPrize);
+             calculateStopAngle(response.prize);
           } else {
-             alert(response.message); // 點數不足或其他錯誤
-             closeWheel();
+             alert(response.message);
+             stopWheelError();
           }
         }
       })
       .catch(err => {
         document.getElementById('loading').classList.add('hidden');
+        document.getElementById('scanOverlay').classList.add('hidden');
         alert("連線失敗：" + err.message);
-        closeWheel();
       });
     }
 
     // ==========================================
-    // ★ 轉盤核心邏輯 (修正版：結果導向)
+    // ★ 蓋章動畫邏輯
     // ==========================================
+    function playStampAnimation(newPoints) {
+        // 1. 播放蓋章動畫
+        const stamp = document.getElementById('stampEffect');
+        stamp.classList.add('stamp-active');
+        
+        // 2. 震動手機 (提升手感)
+        if (navigator.vibrate) navigator.vibrate(50);
 
-    // 繪製轉盤畫面
+        // 3. 停留 1.5 秒讓使用者享受成功的感覺
+        setTimeout(() => {
+            // 隱藏遮罩
+            document.getElementById('scanOverlay').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('scanOverlay').classList.add('hidden');
+                document.getElementById('scanOverlay').style.opacity = '1'; // 復原
+                stamp.classList.remove('stamp-active'); // 復原
+                
+                // 4. 數字滾動特效 (從舊點數滾到新點數)
+                animateValue("points", currentPoints, newPoints, 1000);
+                currentPoints = newPoints;
+                updateUI(newPoints);
+            }, 500);
+        }, 1500);
+    }
+
+    // 數字滾動函式
+    function animateValue(id, start, end, duration) {
+        if (start === end) return;
+        const range = end - start;
+        let current = start;
+        const increment = end > start ? 1 : -1;
+        const stepTime = Math.abs(Math.floor(duration / range));
+        const obj = document.getElementById(id);
+        
+        const timer = setInterval(function() {
+            current += increment;
+            obj.innerHTML = current;
+            // 每次跳動稍微放大一下
+            obj.style.transform = "scale(1.2)";
+            setTimeout(() => obj.style.transform = "scale(1)", 100);
+            
+            if (current == end) {
+                clearInterval(timer);
+            }
+        }, Math.max(stepTime, 50)); // 最快每50ms跳一次
+    }
+
+
+    // ==========================================
+    // 轉盤邏輯 (保持優化版)
+    // ==========================================
+    function handleDrawClick() {
+        if (currentPoints < 10) return alert("點數不足！");
+        if (!confirm("確定要消耗 10 點進行轉盤抽獎嗎？")) return;
+
+        document.getElementById('wheelModal').style.display = "flex";
+        document.getElementById('wheelStatus').innerText = "幸運轉盤轉動中...";
+        isSpinning = true;
+        spinSpeed = 0.5;
+        targetAngle = -1;
+        animateWheel(); 
+        callBackend("draw", {}); 
+    }
+
+    function animateWheel() {
+        if (!isSpinning) return;
+        if (targetAngle === -1) {
+            spinSpeed = 0.5;
+        } else {
+            let delta = targetAngle - startAngle;
+            if (delta < 0) delta += Math.PI * 20;
+            spinSpeed = delta * 0.05; 
+            if (spinSpeed < 0.005) {
+                isSpinning = false;
+                startAngle = targetAngle;
+                drawRouletteWheel();
+                setTimeout(() => {
+                    alert("🎉 恭喜獲得：" + finalPrizeForAlert + "！");
+                    document.getElementById('wheelModal').style.display = "none";
+                    callBackend("init", {}); 
+                }, 500);
+                return;
+            }
+        }
+        startAngle += spinSpeed;
+        if (startAngle > Math.PI * 2) startAngle -= Math.PI * 2;
+        drawRouletteWheel();
+        spinFrameId = requestAnimationFrame(animateWheel);
+    }
+
+    function calculateStopAngle(prizeName) {
+        finalPrizeForAlert = prizeName;
+        document.getElementById('wheelStatus').innerText = "即將揭曉...";
+        const prizeIndex = prizes.indexOf(prizeName);
+        const degreePerSlice = (2 * Math.PI) / prizes.length;
+        const prizeCenterRel = (prizeIndex * degreePerSlice) + (degreePerSlice / 2);
+        let target = (1.5 * Math.PI) - prizeCenterRel;
+        while (target < startAngle + (Math.PI * 6)) { target += Math.PI * 2; }
+        const randomOffset = (Math.random() * 0.1) - 0.05;
+        targetAngle = target + randomOffset;
+    }
+
+    function stopWheelError() {
+        isSpinning = false;
+        cancelAnimationFrame(spinFrameId);
+        document.getElementById('wheelModal').style.display = "none";
+    }
+
     function drawRouletteWheel() {
       const canvas = document.getElementById("wheelCanvas");
       if (!canvas.getContext) return;
@@ -194,7 +360,6 @@
       const outsideRadius = 150;
       const textRadius = 110;
       const insideRadius = 0;
-      
       ctx.clearRect(0, 0, 320, 320);
       ctx.strokeStyle = "white";
       ctx.lineWidth = 2;
@@ -203,17 +368,13 @@
       for(let i = 0; i < prizes.length; i++) {
         const angle = startAngle + i * arc;
         ctx.fillStyle = colors[i];
-        
         ctx.beginPath();
-        // 繪製扇形 (圓心 160, 160)
         ctx.arc(160, 160, outsideRadius, angle, angle + arc, false);
         ctx.arc(160, 160, insideRadius, angle + arc, angle, true);
         ctx.stroke();
         ctx.fill();
-
         ctx.save();
         ctx.fillStyle = "white";
-        // 文字定位與旋轉
         ctx.translate(160 + Math.cos(angle + arc / 2) * textRadius, 
                       160 + Math.sin(angle + arc / 2) * textRadius);
         ctx.rotate(angle + arc / 2 + Math.PI / 2);
@@ -223,105 +384,23 @@
       } 
     }
 
-    // 按下抽獎按鈕
-    function startDrawFlow() {
-      if (!confirm("確定要消耗 10 點進行轉盤抽獎嗎？")) return;
-      // 顯示遮罩
-      document.getElementById('wheelModal').style.display = "flex";
-      document.getElementById('wheelStatus').innerText = "系統連線中...";
-      // 呼叫後端扣點並取得結果
-      callBackend("draw", {}); 
-    }
-
-    // ★ 計算目標角度並開始旋轉
-    function calculateTargetAndSpin(prizeName) {
-      document.getElementById('wheelStatus').innerText = "祝你好運！";
-      
-      // 1. 找出該獎品在陣列中的位置 (0, 1, 2...)
-      const prizeIndex = prizes.indexOf(prizeName);
-      if (prizeIndex === -1) { 
-          alert("系統錯誤：未知的獎品"); 
-          closeWheel();
-          return; 
-      }
-
-      // 2. 計算數學邏輯
-      // 每個扇形佔幾度 (360 / 3 = 120度)
-      const degreePerSlice = 360 / prizes.length;
-      
-      // 該獎品的中心點在圓盤上的原始角度
-      // 例如 index 0 的中心是 60度
-      const prizeCenterDegree = (prizeIndex * degreePerSlice) + (degreePerSlice / 2);
-
-      // 3. 計算修正量
-      // 指針在正上方 (270度位置)。我們要把「獎品中心」轉到「270度」。
-      // 公式：目標偏移 = 270 - 獎品中心角度
-      let offset = 270 - prizeCenterDegree;
-      
-      // 4. 設定旋轉參數
-      // 為了刺激感，至少多轉 5 圈 (360 * 5)
-      // 加入隨機微調 (-10 ~ +10度) 讓指針不會每次都停在正中間，看起來比較自然
-      const randomOffset = Math.floor(Math.random() * 20) - 10;
-      const totalDegree = (360 * 5) + offset + randomOffset;
-
-      // 5. 設定動畫狀態
-      initialRotation = startAngle * 180 / Math.PI; // 將當前弧度轉回角度
-      targetRotation = initialRotation + totalDegree; // 目標總角度
-      spinTime = 0;
-      spinTimeTotal = 5000; // 動畫總時間 5秒
-      
-      rotateWheel(); // 開始播放動畫
-    }
-
-    // 動畫迴圈
-    function rotateWheel() {
-      spinTime += 20; // 每次更新加的時間
-      
-      if(spinTime >= spinTimeTotal) {
-        stopRotateWheel();
-        return;
-      }
-      
-      // 使用 Easing Function (先快後慢) 計算當前角度
-      const currentDegree = easeOut(spinTime, initialRotation, targetRotation - initialRotation, spinTimeTotal);
-      
-      // 將角度轉回弧度並繪圖
-      startAngle = currentDegree * Math.PI / 180;
-      drawRouletteWheel();
-      
-      spinTimeout = requestAnimationFrame(rotateWheel);
-    }
-
-    // 停止旋轉並顯示結果
-    function stopRotateWheel() {
-      cancelAnimationFrame(spinTimeout);
-      
-      // 強制設定為最後的目標角度 (消除浮點數誤差)
-      startAngle = targetRotation * Math.PI / 180;
-      drawRouletteWheel();
-
-      setTimeout(() => {
-        alert("🎉 恭喜獲得：" + finalPrize + "！");
-        closeWheel();
-        callBackend("init", {}); // 重新整理 UI 顯示最新點數
-      }, 500);
-    }
-
-    // 數學緩衝公式 (Ease Out Quart)
-    function easeOut(t, b, c, d) {
-      const ts = (t/=d)*t;
-      const tc = ts*t;
-      return b+c*(tc + -3*ts + 3*t);
-    }
-
-    function closeWheel() {
-      document.getElementById('wheelModal').style.display = "none";
-    }
-
     // ==========================================
-    // 其他 UI 與 網購核銷邏輯
+    // 方案 C：核銷直接顯示代碼
     // ==========================================
+    function showRedeemCode(response) {
+        if (response.status === "success") {
+            document.getElementById('myRedeemCode').innerText = response.code;
+            document.getElementById('redeemModal').style.display = "flex";
+        } else {
+            alert(response.message);
+        }
+    }
+    function closeRedeemModal() {
+        document.getElementById('redeemModal').style.display = "none";
+        callBackend("init", {}); 
+    }
 
+    // 其他 UI
     function updateUI(points) {
       document.getElementById('points').innerText = points;
       const btn = document.getElementById('btnDraw');
@@ -337,60 +416,28 @@
     function renderHistory(logs) {
       const listDiv = document.getElementById('historyList');
       listDiv.innerHTML = "";
-      if (logs.length === 0) { 
-        listDiv.innerHTML = "<div style='color:#999; text-align:center;'>尚無紀錄</div>"; 
-        return; 
-      }
-
+      if (logs.length === 0) { listDiv.innerHTML = "<div style='color:#999; text-align:center;'>尚無紀錄</div>"; return; }
       logs.forEach(log => {
         let actionArea = "";
         if (log.type === "抽獎") {
           if (log.status === "Unclaimed") {
-            // 綁定 onclick 事件，傳入 row index 和獎品名稱
             actionArea = `<button class="btn-redeem" onclick="handleRedeem(${log.rowIndex}, '${log.msg}')">領獎</button>`;
           } else if (log.status === "Claimed") {
             actionArea = `<span class="status-claimed">已兌換</span>`;
           }
         }
         const tagClass = log.type === "集點" ? "tag-scan" : "tag-draw";
-        const html = `
-          <div class="history-item">
-            <div style="text-align:left;">
-              <span class="tag ${tagClass}">${log.type}</span>
-              <span style="font-weight:500;">${log.msg}</span>
-              <span class="time">${log.date}</span>
-            </div>
-            <div>${actionArea}</div>
-          </div>`;
+        const html = `<div class="history-item"><div style="text-align:left;"><span class="tag ${tagClass}">${log.type}</span><span style="font-weight:500;">${log.msg}</span><span class="time">${log.date}</span></div><div>${actionArea}</div></div>`;
         listDiv.innerHTML += html;
       });
     }
 
-    // 按下領獎按鈕
     function handleRedeem(rowIndex, prizeName) {
-      if (confirm(`確定要兌換【${prizeName}】嗎？\n\n系統將產生核銷碼，並引導您回傳給官方帳號。`)) {
+      if (confirm(`確定要兌換【${prizeName}】嗎？\n\n系統將產生核銷碼。`)) {
         document.getElementById('loading').classList.remove('hidden');
-        document.getElementById('loading').innerHTML = "產生核銷碼中...";
         callBackend("redeem", { rowIndex: rowIndex, prizeName: prizeName });
       }
     }
-
-    // 處理核銷回傳結果
-    function handleRedeemResponse(response, prizeName) {
-      if (response.status === "success") {
-        const myCode = response.code; 
-        // 預設要傳給官方帳號的文字
-        const msgToSend = `您好，我要兌換獎品！\n獎項：${prizeName}\n核銷碼：${myCode}\n請幫我安排出貨。`;
-        
-        if(confirm(`兌換成功！\n您的核銷碼是：${myCode}\n\n是否立即傳送給官方帳號？`)) {
-           // 使用 URL Scheme 跳轉到聊天室並帶入文字
-           window.location.href = `https://line.me/R/oaMessage/${LINE_OA_ID}/?${encodeURIComponent(msgToSend)}`;
-        }
-      } else {
-        alert(response.message);
-      }
-    }
-
     function toggleHistory() {
       const section = document.getElementById('historySection');
       section.style.display = (section.style.display === "block") ? "none" : "block";
@@ -398,5 +445,3 @@
   </script>
 </body>
 </html>
-
-
