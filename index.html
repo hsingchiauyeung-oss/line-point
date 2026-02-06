@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>集點卡</title>
+  <title>幸運集點卡</title>
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
     /* === UI 設計 === */
@@ -12,7 +12,7 @@
     h2 { margin: 0; font-size: 16px; color: #888; letter-spacing: 1px;}
     #points { font-size: 72px; font-weight: bold; color: #00C300; margin: 10px 0; line-height: 1; }
     
-    /* 按鈕 */
+    /* 按鈕樣式 */
     .btn { display: block; width: 100%; padding: 16px 0; border-radius: 12px; border: none; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 20px; transition: 0.1s; }
     .btn-draw { background-color: #ff9800; color: white; box-shadow: 0 4px 0 #e68900; }
     .btn-draw:active { box-shadow: 0 2px 0 #e68900; transform: translateY(2px); }
@@ -24,18 +24,18 @@
     #wheelStatus { color: white; font-size: 20px; margin-top: 25px; letter-spacing: 1px;}
     #pointer { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 35px solid #ff3333; z-index: 10; }
 
-    /* 歷史紀錄與核銷 */
+    /* 歷史紀錄列表 */
     #historySection { margin-top: 30px; text-align: left; display: none; border-top: 1px solid #eee; padding-top: 15px; }
     .history-item { padding: 12px 0; border-bottom: 1px solid #f9f9f9; display: flex; justify-content: space-between; align-items: center; }
     .tag { padding: 3px 8px; border-radius: 4px; font-size: 12px; margin-right: 8px; font-weight: bold;}
     .tag-scan { background: #e6f7ff; color: #1890ff; }
     .tag-draw { background: #fff1f0; color: #f5222d; }
-    .btn-redeem { background: #00C300; color: white; border: none; padding: 6px 14px; border-radius: 20px; font-size: 13px; }
+    .btn-redeem { background: #00C300; color: white; border: none; padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; }
     
-    /* 核銷彈窗 */
-    #redeemModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000; }
-    .redeem-box { background: white; width: 80%; max-width: 300px; padding: 25px; border-radius: 12px; text-align: center; }
-    .code-text { font-size: 24px; font-weight: bold; background: #f0f0f0; padding: 10px; margin: 15px 0; display: block; border-radius: 8px; color: #333; letter-spacing: 2px;}
+    /* 核銷彈窗 (含按鈕) */
+    #redeemModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 2000; }
+    .redeem-box { background: white; width: 85%; max-width: 320px; padding: 30px; border-radius: 16px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .code-text { font-size: 24px; font-weight: bold; background: #f0f0f0; padding: 15px; margin: 20px 0; display: block; border-radius: 8px; color: #333; letter-spacing: 2px; border: 2px dashed #ccc;}
 
     /* 讀取中遮罩 */
     #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; display: flex; align-items: center; justify-content: center; z-index: 3000; flex-direction: column; }
@@ -62,9 +62,16 @@
   <div id="redeemModal">
     <div class="redeem-box">
       <h3 style="margin:0 0 10px 0;">🎉 兌換成功</h3>
-      <div style="font-size:14px; color:#666;">請出示或截圖此代碼</div>
+      <div style="font-size:14px; color:#666;">請將核銷碼傳送給客服人員</div>
       <span class="code-text" id="redeemCodeDisplay">...</span>
-      <button onclick="document.getElementById('redeemModal').style.display='none'" style="background:#666; color:white; border:none; padding:10px 30px; border-radius:20px;">關閉</button>
+      
+      <button id="btnSendCode" style="background:#00C300; color:white; border:none; padding:12px 0; border-radius:50px; font-weight:bold; width:100%; margin-bottom:10px; cursor:pointer; font-size:16px; box-shadow: 0 4px 10px rgba(0,195,0,0.3);">
+        📤 傳送代碼給客服
+      </button>
+      
+      <button onclick="document.getElementById('redeemModal').style.display='none'" style="background:transparent; color:#999; border:none; padding:10px; cursor:pointer; font-size:14px; text-decoration: underline;">
+        稍後再傳
+      </button>
     </div>
   </div>
 
@@ -87,10 +94,11 @@
 
   <script>
     // ===================================
-    // ★ 請填入您的資訊
+    // ★ 請在此填入您的資訊 (最重要！)
     // ===================================
     const LIFF_ID = "2009057632-82QgHeXo"; 
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxrxI-wVr2azto-NM505H50lxhf4Bpctvvkbmn9JccXV7fN9pCLPIdtUV3Uhf_jWQBVtw/exec"; 
+    const LINE_OA_ID = "@539gosmt"; // 例如 @123xyz (記得要有 @)
     // ===================================
 
     let currentUserId = null;
@@ -103,29 +111,30 @@
     let arc = Math.PI / (prizes.length / 2);
     let ctx;
     
-    // 初始化
+    // 初始化流程
     liff.init({ liffId: LIFF_ID }).then(() => {
       if (!liff.isLoggedIn()) liff.login();
       else {
         liff.getProfile().then(profile => {
           currentUserId = profile.userId;
-          // 判斷是掃碼進來還是單純打開
+          // 判斷網址有沒有 code 參數 (掃碼進入)
           const urlParams = new URLSearchParams(window.location.search);
           const code = urlParams.get('code');
           if (code) {
              callBackend("scan", { code: code });
+             // 清除網址參數避免重複集點
              window.history.replaceState({}, document.title, window.location.pathname);
           } else {
              callBackend("init", {});
           }
-          drawStaticWheel(); // 先畫好轉盤備用
+          drawStaticWheel(); // 預先畫好轉盤
         });
       }
     });
 
-    // 核心 API 呼叫
+    // 核心後端通訊函式
     function callBackend(action, payload) {
-      // 顯示讀取狀態 (除了抽獎，因為抽獎有自己的狀態)
+      // 除了抽獎之外，都顯示全螢幕讀取
       if(action !== 'draw') document.getElementById('loading').classList.remove('hidden');
 
       const data = { action: action, userId: currentUserId, ...payload };
@@ -138,45 +147,57 @@
       .then(response => {
         if(action !== 'draw') document.getElementById('loading').classList.add('hidden');
 
+        // 錯誤處理
         if (response.status === "fatal_error") {
-            alert("系統維護中，請稍後再試");
+            alert("系統繁忙，請稍後再試");
+            if(action === 'draw') updateUI(currentPoints); // 復原按鈕
             return;
         }
 
-        // 更新點數顯示
+        // 更新點數與列表
         if (response.points !== undefined) {
             currentPoints = response.points;
             updateUI(currentPoints);
         }
-        
-        // 更新歷史紀錄
         if (response.history !== undefined) {
             renderHistory(response.history);
         }
 
-        // 處理各動作的結果
+        // --- 動作分流處理 ---
         if (action === "scan") {
             if(response.status === 'success') alert("集點成功！");
             else alert(response.message);
         }
         else if (action === "redeem") {
             if(response.status === 'success') {
-                document.getElementById('redeemCodeDisplay').innerText = response.code;
+                const code = response.code;
+                document.getElementById('redeemCodeDisplay').innerText = code;
+                
+                // ★ 設定「一鍵傳送」按鈕的連結
+                const msg = `您好，我要兌換獎品！核銷碼：${code}`;
+                // 使用 LINE URL Scheme 跳轉到聊天室並填入文字
+                const url = `https://line.me/R/oaMessage/${LINE_OA_ID}/?${encodeURIComponent(msg)}`;
+                
+                const btn = document.getElementById('btnSendCode');
+                btn.onclick = function() {
+                    window.location.href = url;
+                };
+
+                // 顯示彈窗
                 document.getElementById('redeemModal').style.display = 'flex';
-                // 刷新列表以顯示已兌換
+                // 刷新列表 (讓按鈕變成已兌換)
                 callBackend("init", {}); 
             }
         }
         else if (action === "draw") {
-            // ★ 抽獎的回傳處理
-            const btn = document.getElementById('btnDraw');
+            // ★ 收到抽獎結果
             if(response.status === 'success') {
-                // 成功：啟動轉盤
+                // 成功：啟動轉盤動畫，並傳入目標獎品
                 startSpinning(response.prize);
             } else {
-                // 失敗：復原按鈕
+                // 失敗：跳出警告並復原按鈕
                 alert(response.message);
-                updateUI(currentPoints); // 復原按鈕文字
+                updateUI(currentPoints); 
             }
         }
       })
@@ -187,57 +208,55 @@
       });
     }
 
-    // === 抽獎與轉盤邏輯 (穩定版) ===
+    // === 轉盤邏輯 (穩定版：先拿到結果才轉) ===
     
     function handleDraw() {
         if(!confirm("確定消耗 10 點抽獎？")) return;
         
-        // 1. 鎖定按鈕，讓使用者知道系統正在處理
+        // 1. 鎖定按鈕，給予使用者回饋
         const btn = document.getElementById('btnDraw');
         btn.disabled = true;
-        btn.innerHTML = "⏳ 準備獎品中..."; // 給予明確回饋
+        btn.innerHTML = "⏳ 準備獎品中..."; 
         btn.style.backgroundColor = "#999";
+        btn.style.boxShadow = "none";
+        btn.style.transform = "none";
         
-        // 2. 呼叫後端 (這時候還不顯示轉盤，避免空轉)
+        // 2. 呼叫後端 (此時轉盤還不會出現)
         callBackend("draw", {});
     }
 
     function startSpinning(targetPrize) {
-        // 3. 後端成功回傳獎品後，才顯示轉盤
+        // 3. 後端成功回傳獎品後，顯示轉盤並開始動畫
         document.getElementById('wheelModal').style.display = 'flex';
         document.getElementById('wheelStatus').innerText = "幸運轉盤轉動中...";
         
         // 計算目標角度
         const prizeIndex = prizes.indexOf(targetPrize);
-        // 每個扇形的角度
         const degreePerSlice = (2 * Math.PI) / prizes.length;
-        // 為了讓指針(270度/1.5PI)指向該扇形中心
+        // 指針在上方(1.5PI)，我們要讓該獎品的中心轉到上方
         const centerOffset = (prizeIndex * degreePerSlice) + (degreePerSlice / 2);
         let targetRad = (1.5 * Math.PI) - centerOffset;
         
-        // 加上隨機圈數 (至少 5 圈)
+        // 加上多圈旋轉 (至少 5 圈) + 隨機微調
         const totalRad = targetRad + (Math.PI * 2 * 5) + (Math.random() * 0.1); 
         
-        // 執行 CSS 或 JS 動畫
-        // 這裡我們用簡單的 JS 動畫來確保控制權
-        let currentRad = startAngle;
         let startTime = null;
-        const duration = 4000; // 轉 4 秒
+        const duration = 4000; // 動畫時間 4 秒
 
         function animate(time) {
             if (!startTime) startTime = time;
             const progress = (time - startTime) / duration;
             
             if (progress < 1) {
-                // Easing function (easeOutCubic)
+                // Easing function (easeOutCubic) 讓轉盤慢慢停下
                 const ease = 1 - Math.pow(1 - progress, 3);
                 const currentAngle = startAngle + (totalRad - startAngle) * ease;
                 drawWheel(currentAngle);
                 requestAnimationFrame(animate);
             } else {
-                // 停止
+                // 動畫結束
                 drawWheel(totalRad);
-                startAngle = totalRad % (Math.PI * 2); // 紀錄最後角度
+                startAngle = totalRad % (Math.PI * 2); // 更新當前角度
                 
                 setTimeout(() => {
                     alert("恭喜獲得：" + targetPrize);
@@ -270,7 +289,7 @@
         ctx.lineTo(cx, cy);
         ctx.fill();
         
-        // 文字
+        // 繪製文字
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(sliceAngle + arc/2);
@@ -281,12 +300,13 @@
       }
     }
 
-    // === UI 更新 ===
+    // === UI 更新與歷史紀錄 ===
     
     function updateUI(points) {
         document.getElementById('points').innerText = points;
         const btn = document.getElementById('btnDraw');
-        btn.style.backgroundColor = ""; // 清除灰色
+        btn.style.backgroundColor = ""; 
+        btn.style.boxShadow = ""; 
         
         if (points >= 10) {
             btn.disabled = false;
@@ -313,9 +333,7 @@
                     btnHtml = `<span style="color:#999;font-size:12px;">已兌換</span>`;
                 }
             }
-            
             const tagClass = log.type === "集點" ? "tag-scan" : "tag-draw";
-            
             list.innerHTML += `
             <div class="history-item">
                 <div style="text-align:left;">
@@ -330,9 +348,8 @@
 
     function handleRedeem(rowIndex) {
         if(confirm("確定要兌換嗎？")) {
-            // 顯示簡易讀取
-            const btn = event.target;
-            btn.innerText = "...";
+            // 讓按鈕顯示讀取中
+            event.target.innerText = "...";
             callBackend("redeem", { rowIndex: rowIndex });
         }
     }
