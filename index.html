@@ -2,12 +2,26 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>TISUAPP再生真皮粉集點卡</title>
+  
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
   <style>
-    /* === UI 設計 === */
-    body { font-family: -apple-system, BlinkMacSystemFont, Roboto, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px; text-align: center; color: #333; }
+    /* === UI 設計 (加入頂級 APP 質感防呆設定) === */
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, Roboto, sans-serif; 
+      background-color: #f5f5f5; 
+      margin: 0; 
+      padding: 20px; 
+      text-align: center; 
+      color: #333; 
+      /* 下面三行是讓網頁像 APP 的關鍵 */
+      user-select: none; 
+      -webkit-tap-highlight-color: transparent; 
+      overscroll-behavior-y: none;
+    }
     .card { background: white; padding: 30px 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
     h2 { margin: 0; font-size: 16px; color: #888; letter-spacing: 1px;}
     #points { font-size: 72px; font-weight: bold; color: #00C300; margin: 10px 0; line-height: 1; }
@@ -94,18 +108,18 @@
 
   <script>
     // ===================================
-    // ★ 請在此填入您的資訊 (最重要！)
+    // ★ 您的參數保留區
     // ===================================
     const LIFF_ID = "2009057632-82QgHeXo"; 
     const GAS_URL = "https://script.google.com/macros/s/AKfycby1Q1zgRNwfB4Gs-nV1hjWMCT_kIADO0i91zoblt3QOP9Yenw4x3rHlqAC5sz_2J5ahMw/exec"; 
-    const LINE_OA_ID = "@539gosmt"; // 例如 @123xyz (記得要有 @)
+    const LINE_OA_ID = "@539gosmt";
     // ===================================
 
     let currentUserId = null;
     let currentPoints = 0;
     
-    // 轉盤參數
-    const prizes = ["A賞", "B賞", "C賞"];
+    // 轉盤參數 (已更新為 1、2、3 支)
+    const prizes = ["1支", "2支", "3支"];
     const colors = ["#FF6384", "#36A2EB", "#FFCE56"]; 
     let startAngle = 0;
     let arc = Math.PI / (prizes.length / 2);
@@ -117,24 +131,21 @@
       else {
         liff.getProfile().then(profile => {
           currentUserId = profile.userId;
-          // 判斷網址有沒有 code 參數 (掃碼進入)
           const urlParams = new URLSearchParams(window.location.search);
           const code = urlParams.get('code');
+          
           if (code) {
              callBackend("scan", { code: code });
-             // 清除網址參數避免重複集點
              window.history.replaceState({}, document.title, window.location.pathname);
           } else {
              callBackend("init", {});
           }
-          drawStaticWheel(); // 預先畫好轉盤
+          drawStaticWheel();
         });
       }
     });
 
-    // 核心後端通訊函式
     function callBackend(action, payload) {
-      // 除了抽獎之外，都顯示全螢幕讀取
       if(action !== 'draw') document.getElementById('loading').classList.remove('hidden');
 
       const data = { action: action, userId: currentUserId, ...payload };
@@ -147,14 +158,13 @@
       .then(response => {
         if(action !== 'draw') document.getElementById('loading').classList.add('hidden');
 
-        // 錯誤處理
+        // 錯誤處理 (換成漂亮彈窗)
         if (response.status === "fatal_error") {
-            alert("系統繁忙，請稍後再試");
-            if(action === 'draw') updateUI(currentPoints); // 復原按鈕
+            Swal.fire({ title: '系統繁忙，請稍後再試', icon: 'error', confirmButtonColor: '#00C300' });
+            if(action === 'draw') updateUI(currentPoints);
             return;
         }
 
-        // 更新點數與列表
         if (response.points !== undefined) {
             currentPoints = response.points;
             updateUI(currentPoints);
@@ -165,17 +175,25 @@
 
         // --- 動作分流處理 ---
         if (action === "scan") {
-            if(response.status === 'success') alert("集點成功！");
-            else alert(response.message);
+            if(response.status === 'success') {
+                // 集點成功漂亮彈窗 + 自動破冰魔法
+                Swal.fire({ title: '集點成功！', icon: 'success', confirmButtonColor: '#00C300' }).then(() => {
+                    if (liff.isInClient()) {
+                        liff.sendMessages([{ type: 'text', text: '🎉 我剛剛成功掃碼集了 1 點囉！' }])
+                        .then(() => console.log('自動破冰訊息發送成功'))
+                        .catch((err) => console.error('發送失敗', err));
+                    }
+                });
+            } else {
+                Swal.fire({ title: response.message, icon: 'warning', confirmButtonColor: '#ff9800' });
+            }
         }
         else if (action === "redeem") {
             if(response.status === 'success') {
                 const code = response.code;
                 document.getElementById('redeemCodeDisplay').innerText = code;
                 
-                // ★ 設定「一鍵傳送」按鈕的連結
                 const msg = `您好，我要兌換獎品！核銷碼：${code}`;
-                // 使用 LINE URL Scheme 跳轉到聊天室並填入文字
                 const url = `https://line.me/R/oaMessage/${LINE_OA_ID}/?${encodeURIComponent(msg)}`;
                 
                 const btn = document.getElementById('btnSendCode');
@@ -183,85 +201,87 @@
                     window.location.href = url;
                 };
 
-                // 顯示彈窗
                 document.getElementById('redeemModal').style.display = 'flex';
-                // 刷新列表 (讓按鈕變成已兌換)
                 callBackend("init", {}); 
             }
         }
         else if (action === "draw") {
-            // ★ 收到抽獎結果
             if(response.status === 'success') {
-                // 成功：啟動轉盤動畫，並傳入目標獎品
                 startSpinning(response.prize);
             } else {
-                // 失敗：跳出警告並復原按鈕
-                alert(response.message);
+                Swal.fire({ title: response.message, icon: 'warning', confirmButtonColor: '#ff9800' });
                 updateUI(currentPoints); 
             }
         }
       })
       .catch(err => {
         document.getElementById('loading').classList.add('hidden');
-        alert("網路連線不穩，請重試");
+        Swal.fire({ title: '網路連線不穩，請重試', icon: 'error', confirmButtonColor: '#00C300' });
         if(action === 'draw') updateUI(currentPoints);
       });
     }
 
-    // === 轉盤邏輯 (穩定版：先拿到結果才轉) ===
-    
     function handleDraw() {
-        if(!confirm("確定消耗 10 點抽獎？")) return;
-        
-        // 1. 鎖定按鈕，給予使用者回饋
-        const btn = document.getElementById('btnDraw');
-        btn.disabled = true;
-        btn.innerHTML = "⏳ 準備獎品中..."; 
-        btn.style.backgroundColor = "#999";
-        btn.style.boxShadow = "none";
-        btn.style.transform = "none";
-        
-        // 2. 呼叫後端 (此時轉盤還不會出現)
-        callBackend("draw", {});
+        // 抽獎前的確認 (漂亮彈窗)
+        Swal.fire({
+            title: '確定消耗 10 點抽獎？',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#ff9800',
+            cancelButtonColor: '#999',
+            confirmButtonText: '確定抽獎',
+            cancelButtonText: '取消'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const btn = document.getElementById('btnDraw');
+                btn.disabled = true;
+                btn.innerHTML = "⏳ 準備獎品中..."; 
+                btn.style.backgroundColor = "#999";
+                btn.style.boxShadow = "none";
+                btn.style.transform = "none";
+                
+                callBackend("draw", {});
+            }
+        });
     }
 
     function startSpinning(targetPrize) {
-        // 3. 後端成功回傳獎品後，顯示轉盤並開始動畫
         document.getElementById('wheelModal').style.display = 'flex';
         document.getElementById('wheelStatus').innerText = "幸運轉盤轉動中...";
         
-        // 計算目標角度
         const prizeIndex = prizes.indexOf(targetPrize);
-        const degreePerSlice = (2 * Math.PI) / prizes.length;
-        // 指針在上方(1.5PI)，我們要讓該獎品的中心轉到上方
+        const MathPI = Math.PI; // 避免舊手機渲染問題
+        const degreePerSlice = (2 * MathPI) / prizes.length;
         const centerOffset = (prizeIndex * degreePerSlice) + (degreePerSlice / 2);
-        let targetRad = (1.5 * Math.PI) - centerOffset;
+        let targetRad = (1.5 * MathPI) - centerOffset;
         
-        // 加上多圈旋轉 (至少 5 圈) + 隨機微調
-        const totalRad = targetRad + (Math.PI * 2 * 5) + (Math.random() * 0.1); 
-        
+        const totalRad = targetRad + (MathPI * 2 * 5) + (Math.random() * 0.1); 
         let startTime = null;
-        const duration = 4000; // 動畫時間 4 秒
+        const duration = 4000;
 
         function animate(time) {
             if (!startTime) startTime = time;
             const progress = (time - startTime) / duration;
             
             if (progress < 1) {
-                // Easing function (easeOutCubic) 讓轉盤慢慢停下
                 const ease = 1 - Math.pow(1 - progress, 3);
                 const currentAngle = startAngle + (totalRad - startAngle) * ease;
                 drawWheel(currentAngle);
                 requestAnimationFrame(animate);
             } else {
-                // 動畫結束
                 drawWheel(totalRad);
-                startAngle = totalRad % (Math.PI * 2); // 更新當前角度
+                startAngle = totalRad % (MathPI * 2); 
                 
                 setTimeout(() => {
-                    alert("恭喜獲得：" + targetPrize);
                     document.getElementById('wheelModal').style.display = 'none';
-                    updateUI(currentPoints); // 恢復按鈕狀態
+                    // 抽中獎品的漂亮彈窗
+                    Swal.fire({ 
+                        title: '恭喜獲得：' + targetPrize, 
+                        icon: 'success', 
+                        confirmButtonColor: '#00C300' 
+                    }).then(() => {
+                        updateUI(currentPoints); 
+                    });
                 }, 500);
             }
         }
@@ -289,19 +309,16 @@
         ctx.lineTo(cx, cy);
         ctx.fill();
         
-        // 繪製文字
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(sliceAngle + arc/2);
         ctx.fillStyle = "white";
-        ctx.font = "bold 20px Arial";
-        ctx.fillText(prizes[i], 60, 10);
+        ctx.font = "bold 24px Arial";
+        ctx.fillText(prizes[i], 50, 8); // 稍微調整文字位置適應短字
         ctx.restore();
       }
     }
 
-    // === UI 更新與歷史紀錄 ===
-    
     function updateUI(points) {
         document.getElementById('points').innerText = points;
         const btn = document.getElementById('btnDraw');
@@ -328,7 +345,8 @@
             let btnHtml = "";
             if (log.type === "抽獎") {
                 if(log.status === "Unclaimed") {
-                    btnHtml = `<button class="btn-redeem" onclick="handleRedeem(${log.rowIndex})">領獎</button>`;
+                    // 把按鈕本身傳入 handleRedeem
+                    btnHtml = `<button class="btn-redeem" onclick="handleRedeem(${log.rowIndex}, this)">領獎</button>`;
                 } else {
                     btnHtml = `<span style="color:#999;font-size:12px;">已兌換</span>`;
                 }
@@ -346,12 +364,22 @@
         });
     }
 
-    function handleRedeem(rowIndex) {
-        if(confirm("確定要兌換嗎？")) {
-            // 讓按鈕顯示讀取中
-            event.target.innerText = "...";
-            callBackend("redeem", { rowIndex: rowIndex });
-        }
+    function handleRedeem(rowIndex, btnElement) {
+        // 兌換前的確認 (漂亮彈窗)
+        Swal.fire({
+            title: '確定要兌換嗎？',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#00C300',
+            cancelButtonColor: '#999',
+            confirmButtonText: '確定兌換',
+            cancelButtonText: '稍後再說'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                btnElement.innerText = "...";
+                callBackend("redeem", { rowIndex: rowIndex });
+            }
+        });
     }
     
     function toggleHistory() {
@@ -361,4 +389,3 @@
   </script>
 </body>
 </html>
-
